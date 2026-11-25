@@ -41,3 +41,11 @@ example
 # generated native folders
 /ios
 /android
+
+# Vercel
+.vercel/
+
+# env (keep .env.example)
+.env
+.env.*
+!.env.example
