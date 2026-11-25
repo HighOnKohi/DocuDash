@@ -2,9 +2,9 @@
 
 > Living source of truth for scope, progress, and operational state. Updated at the end of every phase.
 
-**Last updated:** 2026-11-25 (end of Phase 2)
-**Current phase:** Phase 2 — Database & Security Layer — `[x] Completed`
-**Next phase:** Phase 3 — Modular Service Layer & Vercel API — `[ ] Pending` (awaiting go-ahead)
+**Last updated:** 2026-11-25 (end of Phase 3)
+**Current phase:** Phase 3 — Modular Service Layer & Vercel API — `[x] Completed`
+**Next phase:** Phase 4 — Auth & Resident Application — `[ ] Pending` (awaiting go-ahead)
 
 ---
 
@@ -80,17 +80,17 @@ Legend: `[ ] Pending` · `[~] In Progress` · `[x] Completed`
   - Deleting an account (cascade) leaked slot capacity. `release_slot_on_reject` now also runs on `DELETE` of open requests.
   - Status changes were only audited if the client remembered to write a log. New `private.audit_request_changes()` trigger writes `request_created`, `request_reviewing`, `request_approved` and `request_rejected` automatically (`pickup_verified` stays in `verify_pickup()`).
 
-### Phase 3 — Modular Service Layer & Vercel API — `[ ] Pending`
+### Phase 3 — Modular Service Layer & Vercel API — `[x] Completed` (2026-11-25)
 
-- [ ] `services/supabase.ts` — typed client (anon key only), platform-aware session storage, URL polyfill.
-- [ ] `services/authService.ts` — register (with consent timestamp), login, logout, session/profile retrieval, auth state listener.
-- [ ] `services/requestService.ts` — create/list/get requests, staff status transitions, Realtime subscriptions.
-- [ ] `services/storageService.ts` — path-convention uploads, 60-second signed URLs for staff.
-- [ ] `services/scheduleService.ts` — list/manage slots, call `book_pickup_slot` RPC.
-- [ ] `services/auditService.ts` — append audit entries, read audit trail (staff).
-- [ ] `api/verify-pickup.ts` — authenticate staff JWT, validate QR token, mark `completed`, write audit log (service role).
-- [ ] `api/notify-resident.ts` — staff-authenticated status / pickup alert dispatch.
-- [ ] Shared API helpers (CORS allow-list, JSON errors, auth extraction) and `@vercel/node` types.
+- [x] `services/supabase.ts` — typed lazy singleton client (anon key only), platform-aware session storage (SSR-safe `localStorage` on web, `AsyncStorage` + `AppState` token refresh on native), URL polyfill, `ServiceError`, and authenticated `callApi()` helper for `/api/*` — 2026-11-25
+- [x] `services/authService.ts` — register (enforces explicit RA 10173 consent timestamp, never sends `role`), login with profile fetch, logout, session/profile retrieval, editable profile update, auth state listener, role helpers — 2026-11-25
+- [x] `services/requestService.ts` — document types catalogue, create/edit/list/get requests (disambiguated FK joins), staff workflow transitions (`reviewing`, `ready`, `rejected`), `/api/verify-pickup` & `/api/notify-resident` callers, Realtime subscriptions — 2026-11-25
+- [x] `services/storageService.ts` — strict `{user_id}/{request_id}/{filename}` path uploads (`upsert: false`, 5 MiB & MIME validation, orphan cleanup on DB insert failure), attachment deletion, 60-second signed URLs with `attachment_viewed` audit logging — 2026-11-25
+- [x] `services/scheduleService.ts` — `Asia/Manila` date filtering, staff slot CRUD, atomic `book_pickup_slot` RPC caller, Realtime slot capacity subscription — 2026-11-25
+- [x] `services/auditService.ts` — append audit entries (`actor_id = auth.uid()`), staff audit trail query — 2026-11-25
+- [x] `api/verify-pickup.ts` — staff JWT verification, QR format check, server-only `verify_pickup` RPC invocation with status-coded error mapping, hydrated receipt response — 2026-11-25
+- [x] `api/notify-resident.ts` — staff-authenticated status/reminder notification dispatch (optional Resend email delivery with in-app Realtime fallback) and data-minimized `notification_dispatched` audit log — 2026-11-25
+- [x] Shared API helpers (`api/_lib/supabaseAdmin.ts`, `api/_lib/http.ts`, `api/_lib/auth.ts` for strict CORS allow-list, JSON error handling, staff JWT validation), `@vercel/node` dev types, and restored `functions` (`api/*.ts`, `maxDuration: 10`) in `vercel.json` — 2026-11-25
 
 ### Phase 4 — Auth & Resident Application — `[ ] Pending`
 
@@ -137,8 +137,8 @@ Paths are relative to the app root (`DocuDash/`).
 | `nativewind-env.d.ts` | `className` typings for React Native | Created (Phase 1) |
 | `eslint.config.js` | ESLint flat config (`eslint-config-expo`) | Created (Phase 1) |
 | `.prettierrc` | Prettier config with Tailwind class sorting | Created (Phase 1) |
-| `vercel.json` | Vercel build, SPA rewrite (excludes `/api`), headers, function limits | Created (Phase 1) |
-| `.env.example` | Client vs. server-only environment variable template | Created (Phase 1) |
+| `vercel.json` | Vercel build, SPA rewrite (excludes `/api`), headers, `api/*.ts` function `maxDuration: 10` | Updated (Phase 3) |
+| `.env.example` | Client vs. server-only environment variable template (including optional Resend vars) | Updated (Phase 3) |
 | `.gitignore` | Adds `.vercel/` and `.env*` (except `.env.example`) | Updated (Phase 1) |
 | `constants/theme.ts` | Raw color tokens and desktop breakpoint | Created (Phase 1) |
 | `types/assets.d.ts` | Ambient `*.css` module declaration (TS 6 side-effect import checking) | Created (Phase 1) |
@@ -151,9 +151,19 @@ Paths are relative to the app root (`DocuDash/`).
 | `supabase/migrations/002_rls_policies.sql` | RLS policies, `is_staff()`/`is_admin()`, column guards, QR generation | Created (Phase 2) |
 | `supabase/migrations/003_rpc_functions.sql` | `book_pickup_slot()`, reject slot release, `verify_pickup()`, retention helper | Created (Phase 2) |
 | `supabase/migrations/004_storage.sql` | Private `requirements` bucket and path-scoped Storage RLS | Created (Phase 2) |
-| `types/database.ts` | Shared `Database` generics, domain aliases, API contracts | Created (Phase 2) |
-| `services/*.ts` | Service layer (6 files) | Pending (Phase 3) |
-| `api/verify-pickup.ts`, `api/notify-resident.ts` | Vercel Serverless Functions | Pending (Phase 3) |
+| `types/database.ts` | Shared `Database` generics, domain aliases, API payload/response/error contracts | Updated (Phase 3) |
+| `services/supabase.ts` | Typed client (anon key only), platform storage, `ServiceError`, `/api` caller | Created (Phase 3) |
+| `services/authService.ts` | Registration (RA 10173 consent), login/logout, profile & auth state | Created (Phase 3) |
+| `services/requestService.ts` | Requests CRUD, staff workflow transitions, `/api` calls, Realtime | Created (Phase 3) |
+| `services/storageService.ts` | Path-scoped `requirements` uploads (`upsert: false`), 60s signed URLs | Created (Phase 3) |
+| `services/scheduleService.ts` | Pickup slot CRUD, atomic `book_pickup_slot` RPC, Realtime | Created (Phase 3) |
+| `services/auditService.ts` | Append-only audit log inserts and staff audit trail queries | Created (Phase 3) |
+| `api/_lib/supabaseAdmin.ts` | Server-only Supabase service-role client (blocked from Metro bundle) | Created (Phase 3) |
+| `api/_lib/http.ts` | Strict `ALLOWED_ORIGINS` CORS, preflight, security headers, JSON errors | Created (Phase 3) |
+| `api/_lib/auth.ts` | Bearer JWT verification + `staff`/`admin` profile role guard | Created (Phase 3) |
+| `api/_lib/resend.ts` | Server-only Resend Node SDK client (template sending, idempotency, retries) | Created (Phase 3) |
+| `api/verify-pickup.ts` | `POST /api/verify-pickup` — atomic QR pickup verification + receipt | Created (Phase 3) |
+| `api/notify-resident.ts` | `POST /api/notify-resident` — staff notification dispatch + audit log | Created (Phase 3) |
 | `app/(auth)/*`, `app/(resident)/*` | Auth and resident screens | Pending (Phase 4) |
 | `app/(admin)/*` | Staff portal screens | Pending (Phase 5) |
 | `README.md`, `docs/*.md` | Documentation (current `README.md` is the Expo template; replaced in Phase 6) | Pending (Phase 6) |
@@ -174,6 +184,9 @@ Paths are relative to the app root (`DocuDash/`).
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` — bypasses RLS; used only inside `/api`.
 - [ ] `ALLOWED_ORIGINS` — comma-separated CORS allow-list for `/api`.
 - [ ] `CRON_SECRET` — optional; protects the scheduled retention purge job.
+- [ ] `RESEND_API_KEY` — optional; sending-only Resend API key for `/api/notify-resident` (falls back to in-app Realtime + audit log when unset).
+- [ ] `NOTIFICATION_FROM_EMAIL` — optional; verified sender (or `DocuDash <onboarding@resend.dev>` for sandbox testing).
+- [ ] `RESEND_TEMPLATE_ID` — optional; published Resend template ID or alias (defaults to `docudash-status-update`).
 
 ---
 
@@ -206,6 +219,14 @@ Paths are relative to the app root (`DocuDash/`).
 - The same suite fails on the pre-audit migrations (first failure: request `created_at` backdating), which confirms the new checks catch the fixed bugs.
 - Re-run against a real Supabase project (or `supabase start`) once one exists, because the stubs don't cover Realtime or the Storage API.
 
+### Verification results (Phase 3, 2026-11-25)
+
+- `npx tsc --noEmit` — passes (0 errors) across `services/`, `api/`, `types/`, `app/`, and `components/` under strict TS 6 (`noUncheckedIndexedAccess`, `noImplicitOverride`).
+- `npx expo lint` — passes (0 warnings, 0 errors).
+- `npx expo export -p web` — succeeds cleanly to `dist/`.
+- Bundle secret scan (`dist/**/*.js`) — 0 references to `SERVICE_ROLE`, `RESEND_API_KEY`, or `supabaseAdmin` (`metro.config.js` blocks `api/`).
+- `vercel.json` — valid JSON; `functions` pattern updated to `api/*.ts` so it matches only `api/verify-pickup.ts` and `api/notify-resident.ts` (ignoring `api/_lib/`).
+
 ### Known issues / notes
 
 - **App root is the repository root.** Commit `13db8fd` moved the Expo project out of `DocuDash/` to the repo root. On Vercel, leave **Root Directory** as the default (`./`). A leftover template `DocuDash/README.md` can be deleted.
@@ -223,4 +244,4 @@ Paths are relative to the app root (`DocuDash/`).
 
 ### Next actions
 
-1. Phase 3 — build the separated service layer (`services/*.ts`) and Vercel Serverless Functions (`api/verify-pickup.ts`, `api/notify-resident.ts`).
+1. Phase 4 — build the root auth/role guard, authentication screens (`(auth)/login`, `(auth)/register` with RA 10173 consent), resident screens (`(resident)/*`), and reusable UI components.

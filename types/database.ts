@@ -346,3 +346,20 @@ export interface NotifyResidentPayload {
   event: 'reviewing' | 'ready' | 'rejected' | 'completed' | 'slot_reminder';
   message?: string;
 }
+
+/** Response returned by Vercel `POST /api/notify-resident`. */
+export interface NotifyResidentResponse {
+  ok: true;
+  requestId: string;
+  event: NotifyResidentPayload['event'];
+  deliveredVia: 'email' | 'in_app_logged';
+  emailId?: string;
+  auditLogged: true;
+}
+
+/** Standard error response returned by Vercel `/api/*` endpoints. */
+export interface ApiErrorResponse {
+  ok: false;
+  code: string;
+  error: string;
+}

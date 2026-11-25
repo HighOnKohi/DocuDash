@@ -7,7 +7,7 @@
   "devCommand": "npx expo start --web",
   "cleanUrls": true,
   "functions": {
-    "api/**/*.ts": {
+    "api/*.ts": {
       "maxDuration": 10
     }
   },
