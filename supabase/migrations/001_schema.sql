@@ -212,6 +212,51 @@ create trigger requests_set_updated_at
   before update on public.requests
   for each row execute function private.set_updated_at();
 
+-- Server-assigned insert timestamps. Clients must not be able to backdate a
+-- request to jump the review queue, and audit entries must never carry a
+-- caller-supplied time (applies to every role for audit_logs).
+create or replace function private.force_insert_timestamps()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_table_name = 'audit_logs' then
+    new.created_at := now();
+  elsif current_user in ('authenticated', 'anon') then
+    if tg_table_name = 'request_attachments' then
+      new.uploaded_at := now();
+    elsif tg_table_name = 'requests' then
+      new.created_at := now();
+      new.updated_at := now();
+    else
+      new.created_at := now();
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_force_insert_timestamps on public.profiles;
+create trigger profiles_force_insert_timestamps
+  before insert on public.profiles
+  for each row execute function private.force_insert_timestamps();
+
+drop trigger if exists requests_force_insert_timestamps on public.requests;
+create trigger requests_force_insert_timestamps
+  before insert on public.requests
+  for each row execute function private.force_insert_timestamps();
+
+drop trigger if exists request_attachments_force_insert_timestamps on public.request_attachments;
+create trigger request_attachments_force_insert_timestamps
+  before insert on public.request_attachments
+  for each row execute function private.force_insert_timestamps();
+
+drop trigger if exists audit_logs_force_insert_timestamps on public.audit_logs;
+create trigger audit_logs_force_insert_timestamps
+  before insert on public.audit_logs
+  for each row execute function private.force_insert_timestamps();
+
 -- Append-only enforcement for audit_logs (applies to every role, including
 -- service_role and table owners, because triggers are not bypassed by RLS rules).
 create or replace function private.reject_audit_log_mutation()

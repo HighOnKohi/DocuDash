@@ -139,7 +139,9 @@ revoke all on function public.book_pickup_slot(uuid, uuid) from public, anon;
 grant execute on function public.book_pickup_slot(uuid, uuid) to authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
--- Automatically release a booked pickup slot if a request is rejected.
+-- Automatically release a booked pickup slot when a request is rejected, or
+-- when an open request is deleted (e.g. cascade from account deletion).
+-- Completed requests keep their slot: that capacity was actually used.
 -- -----------------------------------------------------------------------------
 create or replace function private.release_slot_on_reject()
 returns trigger
@@ -147,10 +149,16 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_release boolean := false;
 begin
-  if old.status <> 'rejected'
-     and new.status = 'rejected'
-     and old.pickup_slot_id is not null then
+  if tg_op = 'UPDATE' then
+    v_release := old.status <> 'rejected' and new.status = 'rejected';
+  elsif tg_op = 'DELETE' then
+    v_release := old.status not in ('completed', 'rejected');
+  end if;
+
+  if v_release and old.pickup_slot_id is not null then
     perform 1
     from public.pickup_slots
     where id = old.pickup_slot_id
@@ -161,7 +169,7 @@ begin
     where id = old.pickup_slot_id;
   end if;
 
-  return new;
+  return null; -- AFTER trigger: return value ignored
 end;
 $$;
 
@@ -169,6 +177,76 @@ drop trigger if exists requests_release_slot_on_reject on public.requests;
 create trigger requests_release_slot_on_reject
   after update of status on public.requests
   for each row execute function private.release_slot_on_reject();
+
+drop trigger if exists requests_release_slot_on_delete on public.requests;
+create trigger requests_release_slot_on_delete
+  after delete on public.requests
+  for each row execute function private.release_slot_on_reject();
+
+-- -----------------------------------------------------------------------------
+-- Automatic audit trail for request lifecycle events. Written by the database
+-- so the trail cannot be skipped by a client. ready -> completed is logged as
+-- 'pickup_verified' by verify_pickup(), so it is not duplicated here.
+-- -----------------------------------------------------------------------------
+create or replace function private.audit_request_changes()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_action text;
+begin
+  if tg_op = 'INSERT' then
+    insert into public.audit_logs (actor_id, action, request_id, metadata)
+    values (
+      coalesce((select auth.uid()), new.resident_id),
+      'request_created',
+      new.id,
+      jsonb_build_object('document_type_id', new.document_type_id)
+    );
+    return null;
+  end if;
+
+  if new.status is not distinct from old.status then
+    return null;
+  end if;
+
+  v_action := case new.status
+    when 'reviewing' then 'request_reviewing'
+    when 'ready'     then 'request_approved'
+    when 'rejected'  then 'request_rejected'
+    else null
+  end;
+
+  if v_action is not null then
+    insert into public.audit_logs (actor_id, action, request_id, metadata)
+    values (
+      coalesce((select auth.uid()), new.reviewed_by),
+      v_action,
+      new.id,
+      jsonb_strip_nulls(jsonb_build_object(
+        'from_status', old.status,
+        'to_status', new.status,
+        'rejection_reason', new.rejection_reason,
+        'released_slot_id', case when new.status = 'rejected' then old.pickup_slot_id end
+      ))
+    );
+  end if;
+
+  return null;
+end;
+$$;
+
+drop trigger if exists requests_audit_insert on public.requests;
+create trigger requests_audit_insert
+  after insert on public.requests
+  for each row execute function private.audit_request_changes();
+
+drop trigger if exists requests_audit_status on public.requests;
+create trigger requests_audit_status
+  after update of status on public.requests
+  for each row execute function private.audit_request_changes();
 
 -- -----------------------------------------------------------------------------
 -- verify_pickup(p_qr_token, p_staff_id)

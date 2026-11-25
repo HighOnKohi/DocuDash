@@ -352,6 +352,12 @@ begin
     if new.status = 'completed' then
       new.completed_at := now();
     end if;
+    -- A rejected request gives up its slot (capacity is released by the
+    -- requests_release_slot_on_reject trigger in 003) so the slot no longer
+    -- references it and can be deleted by staff once empty.
+    if new.status = 'rejected' then
+      new.pickup_slot_id := null;
+    end if;
   end if;
 
   if new.status not in ('ready', 'completed') then

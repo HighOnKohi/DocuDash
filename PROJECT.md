@@ -14,7 +14,7 @@
 | --- | --- |
 | App name | DocuDash: A Barangay Document Pre-Processing and Scheduled Pickup Application |
 | Version | 1.0.0 |
-| Repository path | `HighOnKohi/DocuDash` → app root at `DocuDash/` (this folder) |
+| Repository path | `HighOnKohi/DocuDash` → app root is the repository root |
 | Target platforms | Android, iOS (Expo native builds), Web (Expo Web on Vercel) |
 | Language | TypeScript (strict, plus `noUncheckedIndexedAccess`) |
 | Framework | Expo SDK 58, React Native 0.88, React 19.3, Expo Router 58 (file-based, typed routes) |
@@ -74,6 +74,11 @@ Legend: `[ ] Pending` · `[~] In Progress` · `[x] Completed`
 - [x] `004_storage.sql` — private `requirements` bucket (5 MiB limit; JPEG/PNG/WebP/PDF), `{user_id}/{request_id}/{filename}` path policies for residents, staff read-all for 60s signed URLs — 2026-11-25
 - [x] Data retention function `get_expired_attachment_paths(p_retention_days default 30)` for purging ID attachments 30 days after completion/rejection (RA 10173) — 2026-11-25
 - [x] `types/database.ts` — typed `Database` definition for `@supabase/supabase-js` v2 generics plus domain aliases and API payload/response contracts — 2026-11-25
+- [x] **Phase 2 re-audit** — 2026-11-25 — fixed 4 issues (all in place, migrations remain idempotent):
+  - Clients could backdate `requests.created_at` (jump the staff queue), `request_attachments.uploaded_at` (dodge the 30-day purge), and `audit_logs.created_at`. New `private.force_insert_timestamps()` trigger now sets these on the server (`audit_logs`: for every role).
+  - A rejected request kept pointing at its slot after the capacity was released, so staff got an FK error when deleting the emptied slot. Rejection now clears `pickup_slot_id`.
+  - Deleting an account (cascade) leaked slot capacity. `release_slot_on_reject` now also runs on `DELETE` of open requests.
+  - Status changes were only audited if the client remembered to write a log. New `private.audit_request_changes()` trigger writes `request_created`, `request_reviewing`, `request_approved` and `request_rejected` automatically (`pickup_verified` stays in `verify_pickup()`).
 
 ### Phase 3 — Modular Service Layer & Vercel API — `[ ] Pending`
 
@@ -194,9 +199,18 @@ Paths are relative to the app root (`DocuDash/`).
   - Verified `audit_logs` rejects `DELETE`/`UPDATE` even for superusers.
 - `npx tsc --noEmit` — passes (0 errors) with `types/database.ts`.
 
+### Verification results (Phase 2 re-audit, 2026-11-25)
+
+- Docker Desktop could not be started from the agent session, so the suite ran on PGlite (Postgres 17, WASM) with small stubs for the Supabase roles (`anon`, `authenticated`, `service_role`), `auth.users`/`auth.uid()`, and `storage.buckets`/`storage.objects`/`storage.foldername()`.
+- All 4 migrations applied twice (idempotent); **48/48 assertions passed**: consent and role at signup, profile/role guards, request insert/update guards, timestamp backdating, attachment and storage path policies, cross-resident isolation, slot booking/re-booking/overbooking, staff state machine and QR generation, rejection slot release plus slot deletion, `verify_pickup` grants and replay, automatic audit trail, append-only audit log, account deletion slot release, retention helper grants.
+- The same suite fails on the pre-audit migrations (first failure: request `created_at` backdating), which confirms the new checks catch the fixed bugs.
+- Re-run against a real Supabase project (or `supabase start`) once one exists, because the stubs don't cover Realtime or the Storage API.
+
 ### Known issues / notes
 
-- **App root is nested.** The Expo project lives in `DocuDash/` inside the repository. On Vercel, set **Root Directory = `DocuDash`** so `vercel.json` and `api/` are picked up.
+- **App root is the repository root.** Commit `13db8fd` moved the Expo project out of `DocuDash/` to the repo root. On Vercel, leave **Root Directory** as the default (`./`). A leftover template `DocuDash/README.md` can be deleted.
+- **First admin account.** Signup always creates `resident`. Promote the first admin once in the Supabase SQL Editor: `update public.profiles set role = 'admin' where id = '<user uuid>';` (the SQL Editor runs as `postgres`, a trusted path). After that, admins promote staff from the app.
+- **Storage upserts.** `requirements` has no UPDATE policy, so uploads must use `upsert: false` (replace = delete + upload). Phase 3 `storageService` must follow this.
 - **`@expo/vector-icons` deprecation notice.** Expo docs mark it as slated for deprecation in favor of `@react-native-vector-icons/*`. It is still the SDK 58-compatible package and is used per project requirements; migrating later is a mechanical import change.
 - **NativeWind version.** NativeWind 4.2.7 (stable, Tailwind 3) is used; NativeWind 5 is still a release candidate.
 - **`npm audit`** reports 3 moderate advisories in transitive dev tooling from the Expo template; no runtime impact identified. Re-check after Phase 6.
@@ -205,7 +219,7 @@ Paths are relative to the app root (`DocuDash/`).
 
 - [ ] Create a Supabase project and copy URL + anon key into `.env.local` (from `.env.example`).
 - [ ] Run migrations `001` → `004` in order in the Supabase SQL Editor (or `supabase db push`).
-- [ ] Create the Vercel project (Root Directory `DocuDash`) and add server-only variables.
+- [ ] Create the Vercel project (default Root Directory) and add server-only variables.
 
 ### Next actions
 
