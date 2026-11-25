@@ -96,3 +96,41 @@ export function getStatusDescription(status: RequestStatus): string {
       return 'This request could not be approved. Review the staff note below.';
   }
 }
+
+export function formatAuditAction(action: string): string {
+  switch (action) {
+    case 'request_created':
+      return 'Request submitted';
+    case 'request_reviewing':
+      return 'Review started';
+    case 'request_approved':
+      return 'Approved & QR pass issued';
+    case 'request_rejected':
+      return 'Request rejected';
+    case 'slot_booked':
+      return 'Pickup slot booked';
+    case 'slot_rebooked':
+      return 'Pickup slot changed';
+    case 'pickup_verified':
+      return 'QR pickup verified & released';
+    case 'attachment_viewed':
+      return 'Requirement file viewed (60s signed URL)';
+    case 'attachments_purged':
+      return 'Expired requirements purged (RA 10173)';
+    case 'notification_dispatched':
+      return 'Resident notification dispatched';
+    default:
+      return action.replace(/_/g, ' ');
+  }
+}
+
+/** Shifts a `YYYY-MM-DD` date string by `days` calendar days. */
+export function addDaysToDate(dateStr: string, days: number): string {
+  const parts = dateStr.split('-').map((p) => Number.parseInt(p, 10));
+  const year = parts[0];
+  const month = parts[1];
+  const day = parts[2];
+  if (!year || !month || !day) return dateStr;
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+}

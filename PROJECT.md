@@ -2,9 +2,9 @@
 
 > Living source of truth for scope, progress, and operational state. Updated at the end of every phase.
 
-**Last updated:** 2026-11-25 (end of Phase 4)
-**Current phase:** Phase 4 — Auth & Resident Application — `[x] Completed`
-**Next phase:** Phase 5 — Barangay Admin Web Portal — `[ ] Pending` (awaiting go-ahead)
+**Last updated:** 2026-11-26 (end of Phase 5)
+**Current phase:** Phase 5 — Barangay Admin Web Portal — `[x] Completed`
+**Next phase:** Phase 6 — Complete Documentation & Final Audit — `[ ] Pending` (awaiting go-ahead)
 
 ---
 
@@ -102,13 +102,13 @@ Legend: `[ ] Pending` · `[~] In Progress` · `[x] Completed`
 - [x] `app/(resident)/profile.tsx` — contact details editor, recorded RA 10173 consent timestamp, 30-day retention policy summary, and sign out — 2026-11-25
 - [x] Reusable components (`Button`, `TextField`, `StatusBadge`, `Card`, `StateView`, `QrCodeMatrix`, `RequestCard`), `constants/format.ts`, and `(admin)` Phase 4 bridge screen — 2026-11-25
 
-### Phase 5 — Barangay Admin Web Portal — `[ ] Pending`
+### Phase 5 — Barangay Admin Web Portal — `[x] Completed` (2026-11-26)
 
-- [ ] `(admin)/_layout.tsx` — desktop sidebar navigation, staff-only guard.
-- [ ] `(admin)/index.tsx` — queue overview and daily pickup metrics.
-- [ ] `(admin)/requests/[id].tsx` — requirement viewer via 60-second signed URLs, approve / reject with reason.
-- [ ] `(admin)/schedules.tsx` — pickup date, time window, and capacity management.
-- [ ] `(admin)/scanner.tsx` — QR scan (camera) plus manual token entry, calls `/api/verify-pickup`.
+- [x] `app/(admin)/_layout.tsx` — responsive desktop sidebar (>= 1024px) & mobile top nav bar with defense-in-depth staff/admin guard and sign-out — 2026-11-26
+- [x] `app/(admin)/index.tsx` — real-time FIFO queue overview, daily pickup capacity & status metrics, today's slot load bars, status filters, and search — 2026-11-26
+- [x] `app/(admin)/requests/[id].tsx` — 60-second signed requirement viewer (live expiry countdown, inline image preview, external PDF open, automatic `attachment_viewed` audit logging), workflow transitions (`Start Review`, `Approve & Issue QR Pass`, `Reject with Reason`), optional `/api/notify-resident` dispatch, and per-request append-only audit trail — 2026-11-26
+- [x] `app/(admin)/schedules.tsx` — pickup date, time window, and capacity management (single slot or standard 4-window day helper, inline capacity editing, unbooked deletion, Realtime capacity bars) — 2026-11-26
+- [x] `app/(admin)/scanner.tsx`, `components/QrScannerView.tsx` (`expo-camera`), and `components/QrScannerView.web.tsx` (webcam `getUserMedia` + `jsqr`) — camera QR scan plus manual token verification via `/api/verify-pickup`, verified release receipts, and session history — 2026-11-26
 
 ### Phase 6 — Complete Documentation & Final Audit — `[ ] Pending`
 
@@ -128,7 +128,7 @@ Paths are relative to the app root (`DocuDash/`).
 | --- | --- | --- |
 | `PROJECT.md` | Living project master file and progress tracker | Created (Phase 1) |
 | `package.json` | Dependencies and scripts (`start`, `web`, `build:web`, `typecheck`, `lint`, `doctor`) | Updated (Phase 1) |
-| `app.json` | Expo config: light UI, Metro web bundler, SPA output, bundle IDs | Updated (Phase 1) |
+| `app.json` | Expo config: light UI, Metro web bundler, SPA output, bundle IDs, `expo-camera` plugin (`recordAudioAndroid: false`) | Updated (Phase 5) |
 | `tsconfig.json` | Strict TS config, `@/*` → project root | Updated (Phase 1) |
 | `babel.config.js` | `babel-preset-expo` with NativeWind JSX import source | Created (Phase 1) |
 | `metro.config.js` | NativeWind Metro wrapper; blocks `api/` and `supabase/` from bundle | Created (Phase 1) |
@@ -149,6 +149,7 @@ Paths are relative to the app root (`DocuDash/`).
 | `components/BrandMark.tsx` | Logo lockup (Material Icon + wordmark) | Created (Phase 1) |
 | `components/FeatureCard.tsx` | Stateless icon/title/description card | Created (Phase 1) |
 | `components/Button.tsx`, `TextField.tsx`, `Card.tsx`, `StatusBadge.tsx`, `StateView.tsx`, `QrCodeMatrix.tsx`, `RequestCard.tsx` | Reusable light-mode UI component library & vector QR pass renderer | Created (Phase 4) |
+| `components/QrScannerView.tsx`, `QrScannerView.web.tsx` | Cross-platform camera QR scanner (`expo-camera` native, webcam + `jsqr` web) | Created (Phase 5) |
 | `AGENTS.md` | Agent guidance (routing note updated to root `app/`) | Updated (Phase 1) |
 | `supabase/migrations/001_schema.sql` | Tables, enums, constraints, indexes, triggers, Realtime, seed | Created (Phase 2) |
 | `supabase/migrations/002_rls_policies.sql` | RLS policies, `is_staff()`/`is_admin()`, column guards, QR generation | Created (Phase 2) |
@@ -169,7 +170,7 @@ Paths are relative to the app root (`DocuDash/`).
 | `api/notify-resident.ts` | `POST /api/notify-resident` — staff notification dispatch + audit log | Created (Phase 3) |
 | `app/(auth)/_layout.tsx`, `login.tsx`, `register.tsx` | Resident/staff login and RA 10173 registration screens | Created (Phase 4) |
 | `app/(resident)/_layout.tsx`, `index.tsx`, `request-new.tsx`, `request/[id].tsx`, `profile.tsx` | Resident tab navigator, dashboard, request form, QR tracker, profile & privacy | Created (Phase 4) |
-| `app/(admin)/_layout.tsx`, `index.tsx` | Staff portal role-guard bridge (full portal in Phase 5) | Placeholder (Phase 4) |
+| `app/(admin)/_layout.tsx`, `index.tsx`, `requests/[id].tsx`, `schedules.tsx`, `scanner.tsx` | Staff web portal: sidebar, queue & metrics, 60s requirement viewer, schedule CRUD, QR scanner | Created (Phase 5) |
 | `README.md`, `docs/*.md` | Documentation (current `README.md` is the Expo template; replaced in Phase 6) | Pending (Phase 6) |
 
 ---
@@ -239,6 +240,14 @@ Paths are relative to the app root (`DocuDash/`).
 - Bundle secret scan (`dist/**/*.js`) — 0 leaks of `SERVICE_ROLE`, `RESEND_API_KEY`, `supabaseAdmin`, or `re_*` tokens.
 - Layering scan (`app/`, `components/`) — 0 direct `@supabase/supabase-js` or client imports; 100% of data access goes through `services/`.
 
+### Verification results (Phase 5, 2026-11-26)
+
+- `npx tsc --noEmit` — passes (0 errors) across native and web scanner files and all `(admin)` typed routes.
+- `npx expo lint` — passes (0 warnings, 0 errors).
+- `npx expo export -p web` — succeeds cleanly to `dist/` (all 18 route bundles generated).
+- Bundle secret scan (`dist/**/*.js`) — 0 leaks of `SERVICE_ROLE`, `RESEND_API_KEY`, `supabaseAdmin`, or `re_*` tokens.
+- Layering scan (`app/`, `components/`) — 0 direct `@supabase/supabase-js` or client imports.
+
 ### Known issues / notes
 
 - **App root is the repository root.** Commit `13db8fd` moved the Expo project out of `DocuDash/` to the repo root. On Vercel, leave **Root Directory** as the default (`./`). A leftover template `DocuDash/README.md` can be deleted.
@@ -256,4 +265,4 @@ Paths are relative to the app root (`DocuDash/`).
 
 ### Next actions
 
-1. Phase 5 — build the Barangay Admin Web Portal (`(admin)/_layout.tsx` desktop sidebar, `(admin)/index.tsx` queue & daily pickup metrics, `(admin)/requests/[id].tsx` 60-second signed requirement viewer & approve/reject workflow, `(admin)/schedules.tsx` slot management, and `(admin)/scanner.tsx` QR verification scanner).
+1. Phase 6 — write complete documentation (`README.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/API_AND_DB.md`, `docs/DEPLOYMENT.md`), run the final security/RLS/secret/bundle audit, verify full TypeScript/lint/export/expo-doctor checks, and finalize `PROJECT.md`.
