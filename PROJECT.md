@@ -2,9 +2,9 @@
 
 > Living source of truth for scope, progress, and operational state. Updated at the end of every phase.
 
-**Last updated:** 2026-11-25 (end of Phase 3)
-**Current phase:** Phase 3 — Modular Service Layer & Vercel API — `[x] Completed`
-**Next phase:** Phase 4 — Auth & Resident Application — `[ ] Pending` (awaiting go-ahead)
+**Last updated:** 2026-11-25 (end of Phase 4)
+**Current phase:** Phase 4 — Auth & Resident Application — `[x] Completed`
+**Next phase:** Phase 5 — Barangay Admin Web Portal — `[ ] Pending` (awaiting go-ahead)
 
 ---
 
@@ -92,15 +92,15 @@ Legend: `[ ] Pending` · `[~] In Progress` · `[x] Completed`
 - [x] `api/notify-resident.ts` — staff-authenticated status/reminder notification dispatch (optional Resend email delivery with in-app Realtime fallback) and data-minimized `notification_dispatched` audit log — 2026-11-25
 - [x] Shared API helpers (`api/_lib/supabaseAdmin.ts`, `api/_lib/http.ts`, `api/_lib/auth.ts` for strict CORS allow-list, JSON error handling, staff JWT validation), `@vercel/node` dev types, and restored `functions` (`api/*.ts`, `maxDuration: 10`) in `vercel.json` — 2026-11-25
 
-### Phase 4 — Auth & Resident Application — `[ ] Pending`
+### Phase 4 — Auth & Resident Application — `[x] Completed` (2026-11-25)
 
-- [ ] Root auth/role guard in `app/_layout.tsx` (redirect by session and `profiles.role`).
-- [ ] `(auth)/login.tsx` and `(auth)/register.tsx` with explicit RA 10173 consent checkbox and notice.
-- [ ] `(resident)/index.tsx` — dashboard with active requests and live status.
-- [ ] `(resident)/request-new.tsx` — document selection, purpose form, ID upload, slot picker.
-- [ ] `(resident)/request/[id].tsx` — real-time status tracker and QR pickup pass.
-- [ ] `(resident)/profile.tsx` — profile and privacy settings.
-- [ ] Reusable components (buttons, inputs, status badge, cards, empty/error states).
+- [x] `contexts/AuthContext.tsx` + root auth/role guard in `app/_layout.tsx` using Expo Router SDK 58 `Stack.Protected` (separates public/`(auth)`, `(resident)`, and `(admin)` by session & `profiles.role`) + splash screen lifecycle — 2026-11-25
+- [x] `app/(auth)/login.tsx`, `app/(auth)/register.tsx` (with explicit RA 10173 Data Privacy notice and mandatory consent checkbox), and Sign In / Register CTAs on `app/index.tsx` — 2026-11-25
+- [x] `app/(resident)/_layout.tsx` & `app/(resident)/index.tsx` — mobile-first tab navigation, live Realtime dashboard, summary counters, status filters, and ready-for-pickup QR highlight — 2026-11-25
+- [x] `app/(resident)/request-new.tsx` — document selection (with fee & required docs checklist), purpose form, `expo-document-picker` private ID uploads (JPG/PNG/WebP/PDF, 5 MiB limit), and live upcoming slot picker — 2026-11-25
+- [x] `app/(resident)/request/[id].tsx` — real-time status timeline, vector QR pickup pass (`qrcode` + `react-native-svg`), inline slot booking/re-booking, pending purpose edits, and requirement preview/upload/delete — 2026-11-25
+- [x] `app/(resident)/profile.tsx` — contact details editor, recorded RA 10173 consent timestamp, 30-day retention policy summary, and sign out — 2026-11-25
+- [x] Reusable components (`Button`, `TextField`, `StatusBadge`, `Card`, `StateView`, `QrCodeMatrix`, `RequestCard`), `constants/format.ts`, and `(admin)` Phase 4 bridge screen — 2026-11-25
 
 ### Phase 5 — Barangay Admin Web Portal — `[ ] Pending`
 
@@ -141,11 +141,14 @@ Paths are relative to the app root (`DocuDash/`).
 | `.env.example` | Client vs. server-only environment variable template (including optional Resend vars) | Updated (Phase 3) |
 | `.gitignore` | Adds `.vercel/` and `.env*` (except `.env.example`) | Updated (Phase 1) |
 | `constants/theme.ts` | Raw color tokens and desktop breakpoint | Created (Phase 1) |
+| `constants/format.ts` | PHP currency, Asia/Manila date/time, and status label formatters | Created (Phase 4) |
+| `contexts/AuthContext.tsx` | Session/profile provider with role helpers and `services/authService` bridge | Created (Phase 4) |
 | `types/assets.d.ts` | Ambient `*.css` module declaration (TS 6 side-effect import checking) | Created (Phase 1) |
-| `app/_layout.tsx` | Root layout: global CSS, light theme, stack (auth guard in Phase 4) | Created (Phase 1) |
-| `app/index.tsx` | Public landing screen | Created (Phase 1) |
+| `app/_layout.tsx` | Root layout: global CSS, light theme, `AuthProvider`, `Stack.Protected` role guards | Updated (Phase 4) |
+| `app/index.tsx` | Public landing screen with Sign In / Register actions | Updated (Phase 4) |
 | `components/BrandMark.tsx` | Logo lockup (Material Icon + wordmark) | Created (Phase 1) |
 | `components/FeatureCard.tsx` | Stateless icon/title/description card | Created (Phase 1) |
+| `components/Button.tsx`, `TextField.tsx`, `Card.tsx`, `StatusBadge.tsx`, `StateView.tsx`, `QrCodeMatrix.tsx`, `RequestCard.tsx` | Reusable light-mode UI component library & vector QR pass renderer | Created (Phase 4) |
 | `AGENTS.md` | Agent guidance (routing note updated to root `app/`) | Updated (Phase 1) |
 | `supabase/migrations/001_schema.sql` | Tables, enums, constraints, indexes, triggers, Realtime, seed | Created (Phase 2) |
 | `supabase/migrations/002_rls_policies.sql` | RLS policies, `is_staff()`/`is_admin()`, column guards, QR generation | Created (Phase 2) |
@@ -164,8 +167,9 @@ Paths are relative to the app root (`DocuDash/`).
 | `api/_lib/resend.ts` | Server-only Resend Node SDK client (template sending, idempotency, retries) | Created (Phase 3) |
 | `api/verify-pickup.ts` | `POST /api/verify-pickup` — atomic QR pickup verification + receipt | Created (Phase 3) |
 | `api/notify-resident.ts` | `POST /api/notify-resident` — staff notification dispatch + audit log | Created (Phase 3) |
-| `app/(auth)/*`, `app/(resident)/*` | Auth and resident screens | Pending (Phase 4) |
-| `app/(admin)/*` | Staff portal screens | Pending (Phase 5) |
+| `app/(auth)/_layout.tsx`, `login.tsx`, `register.tsx` | Resident/staff login and RA 10173 registration screens | Created (Phase 4) |
+| `app/(resident)/_layout.tsx`, `index.tsx`, `request-new.tsx`, `request/[id].tsx`, `profile.tsx` | Resident tab navigator, dashboard, request form, QR tracker, profile & privacy | Created (Phase 4) |
+| `app/(admin)/_layout.tsx`, `index.tsx` | Staff portal role-guard bridge (full portal in Phase 5) | Placeholder (Phase 4) |
 | `README.md`, `docs/*.md` | Documentation (current `README.md` is the Expo template; replaced in Phase 6) | Pending (Phase 6) |
 
 ---
@@ -227,6 +231,14 @@ Paths are relative to the app root (`DocuDash/`).
 - Bundle secret scan (`dist/**/*.js`) — 0 references to `SERVICE_ROLE`, `RESEND_API_KEY`, or `supabaseAdmin` (`metro.config.js` blocks `api/`).
 - `vercel.json` — valid JSON; `functions` pattern updated to `api/*.ts` so it matches only `api/verify-pickup.ts` and `api/notify-resident.ts` (ignoring `api/_lib/`).
 
+### Verification results (Phase 4, 2026-11-25)
+
+- `npx tsc --noEmit` — passes (0 errors) across all new contexts, components, and Expo Router typed routes.
+- `npx expo lint` — passes (0 warnings, 0 errors), including React Compiler memoization and effect checks.
+- `npx expo export -p web` — succeeds cleanly to `dist/` (all 16 route bundles generated).
+- Bundle secret scan (`dist/**/*.js`) — 0 leaks of `SERVICE_ROLE`, `RESEND_API_KEY`, `supabaseAdmin`, or `re_*` tokens.
+- Layering scan (`app/`, `components/`) — 0 direct `@supabase/supabase-js` or client imports; 100% of data access goes through `services/`.
+
 ### Known issues / notes
 
 - **App root is the repository root.** Commit `13db8fd` moved the Expo project out of `DocuDash/` to the repo root. On Vercel, leave **Root Directory** as the default (`./`). A leftover template `DocuDash/README.md` can be deleted.
@@ -244,4 +256,4 @@ Paths are relative to the app root (`DocuDash/`).
 
 ### Next actions
 
-1. Phase 4 — build the root auth/role guard, authentication screens (`(auth)/login`, `(auth)/register` with RA 10173 consent), resident screens (`(resident)/*`), and reusable UI components.
+1. Phase 5 — build the Barangay Admin Web Portal (`(admin)/_layout.tsx` desktop sidebar, `(admin)/index.tsx` queue & daily pickup metrics, `(admin)/requests/[id].tsx` 60-second signed requirement viewer & approve/reject workflow, `(admin)/schedules.tsx` slot management, and `(admin)/scanner.tsx` QR verification scanner).
