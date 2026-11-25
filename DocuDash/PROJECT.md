@@ -2,9 +2,9 @@
 
 > Living source of truth for scope, progress, and operational state. Updated at the end of every phase.
 
-**Last updated:** 2026-11-24 (end of Phase 1)
-**Current phase:** Phase 1 — Foundation & Project Tracking — `[x] Completed`
-**Next phase:** Phase 2 — Database & Security Layer — `[ ] Pending` (awaiting go-ahead)
+**Last updated:** 2026-11-25 (end of Phase 2)
+**Current phase:** Phase 2 — Database & Security Layer — `[x] Completed`
+**Next phase:** Phase 3 — Modular Service Layer & Vercel API — `[ ] Pending` (awaiting go-ahead)
 
 ---
 
@@ -65,15 +65,15 @@ Legend: `[ ] Pending` · `[~] In Progress` · `[x] Completed`
 - [x] Verification: `tsc --noEmit`, `expo lint`, `expo export -p web` — 2026-11-24 — see Section 5 for results.
 - [x] Create `PROJECT.md` with full roadmap — 2026-11-24
 
-### Phase 2 — Database & Security Layer — `[ ] Pending`
+### Phase 2 — Database & Security Layer — `[x] Completed` (2026-11-25)
 
-- [ ] `supabase/migrations/001_schema.sql` — enums (`user_role`, `request_status`), tables `profiles`, `document_types`, `pickup_slots`, `requests`, `request_attachments`, `audit_logs`; constraints (`booked_count <= max_capacity`, `privacy_consent_at NOT NULL`, unique `qr_token`), indexes, `updated_at` trigger, `handle_new_user` profile trigger.
-- [ ] Seed `document_types`: Barangay Clearance, Certificate of Indigency, Certificate of Residency, Business Clearance (fees + `required_docs` JSONB).
-- [ ] `002_rls_policies.sql` — enable RLS on all tables; `public.is_staff()` SECURITY DEFINER (pinned `search_path`); resident own-row SELECT/INSERT; column-protection trigger blocking resident changes to `role`, `status`, `reviewed_by`, `qr_token`; staff workflow updates; append-only `audit_logs` (no UPDATE/DELETE).
-- [ ] `003_rpc_functions.sql` — `book_pickup_slot(p_request_id, p_slot_id)` with `SELECT ... FOR UPDATE`, ownership and capacity checks, slot release on re-book; server-side `qr_token` generation (`gen_random_bytes`) on transition to `ready`.
-- [ ] `004_storage.sql` — private `requirements` bucket, MIME/size limits, `{user_id}/{request_id}/{filename}` path policies, staff read-all.
-- [ ] Data retention function for purging ID attachments 30 days after completion (RA 10173).
-- [ ] `types/database.ts` — typed `Database` definition for `supabase-js` generics plus domain types.
+- [x] `supabase/migrations/001_schema.sql` — enums (`user_role`, `request_status`), tables `profiles`, `document_types`, `pickup_slots`, `requests`, `request_attachments`, `audit_logs`; constraints (`booked_count <= max_capacity`, `privacy_consent_at NOT NULL`, unique `qr_token`, QR/status coupling), indexes, `updated_at` trigger, `handle_new_user` profile trigger (enforces RA 10173 consent and forces `'resident'` role), append-only `audit_logs` triggers, Realtime publication — 2026-11-25
+- [x] Seed `document_types`: Barangay Clearance, Certificate of Indigency, Certificate of Residency, Business Clearance (fees + `required_docs` JSONB) — 2026-11-25
+- [x] `002_rls_policies.sql` — RLS on all 6 tables; `public.is_staff()` & `public.is_admin()` SECURITY DEFINER (pinned `search_path`); least-privilege grants; resident own-row SELECT/INSERT; column-protection triggers blocking resident changes to `role`, `status`, `reviewed_by`, `qr_token`, `pickup_slot_id`, `completed_at`; staff workflow state machine with server-side 256-bit `qr_token` generation (`extensions.gen_random_bytes`) on transition to `ready`; append-only `audit_logs` — 2026-11-25
+- [x] `003_rpc_functions.sql` — `book_pickup_slot(p_request_id, p_slot_id)` with deadlock-free `SELECT ... FOR UPDATE`, ownership and capacity checks, slot release on re-book; `release_slot_on_reject` trigger; server-only `verify_pickup(p_qr_token, p_staff_id)` RPC — 2026-11-25
+- [x] `004_storage.sql` — private `requirements` bucket (5 MiB limit; JPEG/PNG/WebP/PDF), `{user_id}/{request_id}/{filename}` path policies for residents, staff read-all for 60s signed URLs — 2026-11-25
+- [x] Data retention function `get_expired_attachment_paths(p_retention_days default 30)` for purging ID attachments 30 days after completion/rejection (RA 10173) — 2026-11-25
+- [x] `types/database.ts` — typed `Database` definition for `@supabase/supabase-js` v2 generics plus domain aliases and API payload/response contracts — 2026-11-25
 
 ### Phase 3 — Modular Service Layer & Vercel API — `[ ] Pending`
 
@@ -142,11 +142,11 @@ Paths are relative to the app root (`DocuDash/`).
 | `components/BrandMark.tsx` | Logo lockup (Material Icon + wordmark) | Created (Phase 1) |
 | `components/FeatureCard.tsx` | Stateless icon/title/description card | Created (Phase 1) |
 | `AGENTS.md` | Agent guidance (routing note updated to root `app/`) | Updated (Phase 1) |
-| `supabase/migrations/001_schema.sql` | Tables, enums, constraints, indexes, seed | Pending (Phase 2) |
-| `supabase/migrations/002_rls_policies.sql` | RLS and `is_staff()` | Pending (Phase 2) |
-| `supabase/migrations/003_rpc_functions.sql` | `book_pickup_slot()` and workflow functions | Pending (Phase 2) |
-| `supabase/migrations/004_storage.sql` | Private bucket and storage RLS | Pending (Phase 2) |
-| `types/database.ts` | Shared database and domain types | Pending (Phase 2) |
+| `supabase/migrations/001_schema.sql` | Tables, enums, constraints, indexes, triggers, Realtime, seed | Created (Phase 2) |
+| `supabase/migrations/002_rls_policies.sql` | RLS policies, `is_staff()`/`is_admin()`, column guards, QR generation | Created (Phase 2) |
+| `supabase/migrations/003_rpc_functions.sql` | `book_pickup_slot()`, reject slot release, `verify_pickup()`, retention helper | Created (Phase 2) |
+| `supabase/migrations/004_storage.sql` | Private `requirements` bucket and path-scoped Storage RLS | Created (Phase 2) |
+| `types/database.ts` | Shared `Database` generics, domain aliases, API contracts | Created (Phase 2) |
 | `services/*.ts` | Service layer (6 files) | Pending (Phase 3) |
 | `api/verify-pickup.ts`, `api/notify-resident.ts` | Vercel Serverless Functions | Pending (Phase 3) |
 | `app/(auth)/*`, `app/(resident)/*` | Auth and resident screens | Pending (Phase 4) |
@@ -182,6 +182,18 @@ Paths are relative to the app root (`DocuDash/`).
 - `npx expo-doctor` — 20/20 checks passed.
 - Bundle secret scan — no `SERVICE_ROLE` references in `dist/` JS.
 
+### Verification results (Phase 2)
+
+- **PostgreSQL migration & security test suite** (executed against ephemeral `supabase/postgres:17.12.0.005` Docker container):
+  - All 4 migrations (`001` → `004`) applied cleanly twice (idempotent).
+  - Verified 4 seeded `document_types` and private `requirements` bucket (`public = false`).
+  - Verified `on_auth_user_created` rejects missing RA 10173 consent and forces `role = 'resident'` even when client passes `role: 'admin'`.
+  - Verified residents cannot elevate `role` or tamper with `status`/`qr_token`, and cannot view other residents' requests or storage objects.
+  - Verified `book_pickup_slot()` atomically reserves capacity, decrements old slot on re-book, rejects overbooking when full, and `release_slot_on_reject` restores capacity on rejection.
+  - Verified staff workflow `pending -> reviewing -> ready` generates a 43-char CSPRNG `qr_token` server-side; `verify_pickup()` is restricted to `service_role`, completes the request atomically, writes `audit_logs`, and rejects replay.
+  - Verified `audit_logs` rejects `DELETE`/`UPDATE` even for superusers.
+- `npx tsc --noEmit` — passes (0 errors) with `types/database.ts`.
+
 ### Known issues / notes
 
 - **App root is nested.** The Expo project lives in `DocuDash/` inside the repository. On Vercel, set **Root Directory = `DocuDash`** so `vercel.json` and `api/` are picked up.
@@ -192,9 +204,9 @@ Paths are relative to the app root (`DocuDash/`).
 ### Pending manual steps
 
 - [ ] Create a Supabase project and copy URL + anon key into `.env.local` (from `.env.example`).
-- [ ] After Phase 2: run migrations `001` → `004` in the Supabase SQL editor (or `supabase db push`).
+- [ ] Run migrations `001` → `004` in order in the Supabase SQL Editor (or `supabase db push`).
 - [ ] Create the Vercel project (Root Directory `DocuDash`) and add server-only variables.
 
 ### Next actions
 
-1. Phase 2 — write SQL migrations `001`–`004`, seed data, and `types/database.ts`.
+1. Phase 3 — build the separated service layer (`services/*.ts`) and Vercel Serverless Functions (`api/verify-pickup.ts`, `api/notify-resident.ts`).
