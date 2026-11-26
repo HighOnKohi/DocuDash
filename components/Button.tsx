@@ -47,9 +47,9 @@ const VARIANT_CLASSES: Record<ButtonVariant, { container: string; pressed: strin
     iconColor: colors.primary,
   },
   danger: {
-    container: 'bg-surface border border-primary-200',
-    pressed: 'bg-primary-50 border-primary',
-    text: 'text-primary',
+    container: 'bg-surface border border-red-200',
+    pressed: 'bg-red-50 border-red-600',
+    text: 'text-red-700',
     iconColor: colors.danger,
   },
 };

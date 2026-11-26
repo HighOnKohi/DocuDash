@@ -281,7 +281,7 @@ export default function AdminDashboardScreen() {
                       </Text>
                       <Text
                         className={`text-xs font-bold ${
-                          isFull ? 'text-primary' : 'text-ink-muted'
+                          isFull ? 'text-red-700' : 'text-ink-muted'
                         }`}
                       >
                         {slot.booked_count}/{slot.max_capacity}
@@ -290,7 +290,7 @@ export default function AdminDashboardScreen() {
                     <View className="h-1.5 overflow-hidden rounded-full bg-border">
                       <View
                         className={`h-full rounded-full ${
-                          isFull ? 'bg-primary' : ratio >= 0.75 ? 'bg-amber-600' : 'bg-emerald-600'
+                          isFull ? 'bg-red-600' : ratio >= 0.75 ? 'bg-amber-600' : 'bg-emerald-600'
                         }`}
                         style={{ width: `${Math.min(ratio * 100, 100)}%` }}
                       />

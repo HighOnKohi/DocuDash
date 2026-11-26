@@ -67,7 +67,12 @@ The Expo app and `api/` live at the **repository root** (`./`).
    - `SUPABASE_URL` — `https://<ref>.supabase.co`
    - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role key
    - `ALLOWED_ORIGINS` — Comma-separated allowed origins, e.g. `https://your-app.vercel.app,http://localhost:8081`
-   - `RESEND_API_KEY` *(optional)* — Sending-only Resend key
+   - `SMTP_HOST` *(optional)* — SMTP host for `/api/notify-resident` (defaults to `smtp.gmail.com`)
+   - `SMTP_PORT` *(optional)* — SMTP port (`465` for SSL or `587` for STARTTLS; defaults to `465`)
+   - `SMTP_USER` *(optional)* — SMTP login username (e.g. your Gmail address; takes priority over Resend when set with `SMTP_PASS`)
+   - `SMTP_PASS` *(optional)* — SMTP password or 16-character Gmail App Password (no spaces)
+   - `SMTP_FROM` *(optional)* — Sender display string (defaults to `DocuDash <$SMTP_USER>`)
+   - `RESEND_API_KEY` *(optional)* — Sending-only Resend key (used when SMTP is not configured)
    - `NOTIFICATION_FROM_EMAIL` *(optional)* — Verified sender or `DocuDash <onboarding@resend.dev>`
    - `RESEND_TEMPLATE_ID` *(optional)* — Published template ID or `docudash-status-update`
    - `CRON_SECRET` *(optional)* — Shared secret for scheduled RA 10173 retention purge jobs

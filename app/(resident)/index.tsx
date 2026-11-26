@@ -149,7 +149,7 @@ export default function ResidentDashboardScreen() {
             style={({ pressed }) => (pressed ? { opacity: 0.92 } : undefined)}
           >
             <View className="h-11 w-11 items-center justify-center rounded-lg bg-primary-800">
-              <MaterialIcons name="qr-code-2" size={24} color={colors.surface} />
+              <MaterialIcons name="qr-code-2" size={24} color={colors.accent} />
             </View>
             <View className="flex-1 gap-0.5">
               <Text className="text-sm font-bold text-surface">

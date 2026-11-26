@@ -50,7 +50,7 @@ export function TextField({
   const [isFocused, setIsFocused] = useState(false);
 
   const borderClass = error
-    ? 'border-primary'
+    ? 'border-red-600'
     : isFocused
       ? 'border-primary'
       : 'border-border-strong';
@@ -60,7 +60,7 @@ export function TextField({
       <View className="flex-row items-center justify-between">
         <Text className="text-sm font-semibold text-ink">
           {label}
-          {required ? <Text className="text-primary"> *</Text> : null}
+          {required ? <Text className="text-red-600"> *</Text> : null}
         </Text>
         {maxLength ? (
           <Text className="text-xs text-ink-subtle">
@@ -112,7 +112,7 @@ export function TextField({
       </View>
 
       {error ? (
-        <Text className="text-xs font-medium text-primary">{error}</Text>
+        <Text className="text-xs font-medium text-red-700">{error}</Text>
       ) : helperText ? (
         <Text className="text-xs text-ink-subtle">{helperText}</Text>
       ) : null}

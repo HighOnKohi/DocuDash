@@ -1,9 +1,10 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Redirect, router, Slot, usePathname } from 'expo-router';
 import { useState, type ComponentProps } from 'react';
-import { Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { Image, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import logoSource from '@/assets/images/logo.png';
 import { BrandMark } from '@/components/BrandMark';
 import { Button } from '@/components/Button';
 import { colors, DESKTOP_BREAKPOINT } from '@/constants/theme';
@@ -59,7 +60,7 @@ export default function AdminLayout() {
   const [signingOut, setSigningOut] = useState(false);
 
   if (!isAuthenticated || !isStaff) {
-    return <Redirect href="/" />;
+    return <Redirect href={isAuthenticated ? '/(resident)' : '/(auth)'} />;
   }
 
   const isDesktop = width >= DESKTOP_BREAKPOINT;
@@ -164,9 +165,13 @@ export default function AdminLayout() {
       >
         <View className="flex-row items-center justify-between gap-2">
           <View className="flex-row items-center gap-2.5">
-            <View className="h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <MaterialIcons name="description" size={20} color={colors.surface} />
-            </View>
+            <Image
+              source={logoSource}
+              resizeMode="contain"
+              style={{ width: 36, height: 36, borderRadius: 8 }}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
             <View>
               <Text className="text-base font-bold text-ink">DocuDash Staff</Text>
               <Text className="text-[11px] font-medium text-ink-subtle">

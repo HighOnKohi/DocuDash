@@ -11,6 +11,10 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
+export const unstable_settings = {
+  anchor: '(auth)',
+};
+
 const docuDashTheme: Theme = {
   ...DefaultTheme,
   dark: false,
@@ -57,16 +61,24 @@ function RootNavigator() {
         contentStyle: { backgroundColor: colors.surfaceMuted },
       }}
     >
-      <Stack.Protected guard={!isAuthenticated}>
-        <Stack.Screen name="index" />
+      <Stack.Protected
+        guard={!isAuthenticated}
+        redirectTo={isStaff ? '/(admin)' : '/(resident)'}
+      >
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
 
-      <Stack.Protected guard={isAuthenticated && !isStaff}>
+      <Stack.Protected
+        guard={isAuthenticated && !isStaff}
+        redirectTo={isAuthenticated ? '/(admin)' : '/(auth)'}
+      >
         <Stack.Screen name="(resident)" />
       </Stack.Protected>
 
-      <Stack.Protected guard={isAuthenticated && isStaff}>
+      <Stack.Protected
+        guard={isAuthenticated && isStaff}
+        redirectTo={isAuthenticated ? '/(resident)' : '/(auth)'}
+      >
         <Stack.Screen name="(admin)" />
       </Stack.Protected>
     </Stack>

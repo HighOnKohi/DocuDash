@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: 'class',
   content: [
     './app/**/*.{js,jsx,ts,tsx}',
     './components/**/*.{js,jsx,ts,tsx}',
@@ -8,16 +9,25 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // DocuDash design tokens (light mode only).
+        // DocuDash design tokens (light mode only — matched to the DocuDash royal blue & gold logo).
         primary: {
-          DEFAULT: '#991B1B',
-          hover: '#B91C1C',
-          50: '#FEF2F2',
-          100: '#FEE2E2',
-          200: '#FECACA',
-          600: '#B91C1C',
-          700: '#991B1B',
-          800: '#7F1D1D',
+          DEFAULT: '#01227F',
+          hover: '#1D3FA3',
+          50: '#EEF2FF',
+          100: '#DCE5FF',
+          200: '#B8C9F8',
+          600: '#1D3FA3',
+          700: '#01227F',
+          800: '#00175A',
+        },
+        accent: {
+          DEFAULT: '#FBC128',
+          50: '#FFFBEB',
+          100: '#FEF3C7',
+          200: '#FDE68A',
+          500: '#FBC128',
+          600: '#D97706',
+          700: '#B45309',
         },
         surface: {
           DEFAULT: '#FFFFFF',

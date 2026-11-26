@@ -2,11 +2,17 @@
  * DocuDash design tokens for places where a raw color value is required
  * (e.g. icon `color` props, StatusBar, navigation theme). Tailwind classes in
  * `tailwind.config.js` mirror these values; keep both in sync.
+ *
+ * Palette matches the DocuDash brand icon: deep royal blue (`#01227F`) paired
+ * with warm amber-gold accents (`#FBC128`) on clean light surfaces.
  */
 export const colors = {
-  primary: '#991B1B',
-  primaryHover: '#B91C1C',
-  primarySoft: '#FEF2F2',
+  primary: '#01227F',
+  primaryHover: '#1D3FA3',
+  primarySoft: '#EEF2FF',
+  accent: '#FBC128',
+  accentDark: '#B45309',
+  accentSoft: '#FFFBEB',
   surface: '#FFFFFF',
   surfaceMuted: '#F8FAFC',
   border: '#E2E8F0',

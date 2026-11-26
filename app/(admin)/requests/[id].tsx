@@ -532,7 +532,7 @@ export default function AdminRequestReviewScreen() {
                             {files.length > 0 ? (
                               <MaterialIcons name="check-circle" size={18} color={colors.success} />
                             ) : (
-                              <Text className="text-xs font-bold text-primary">Not uploaded</Text>
+                              <Text className="text-xs font-bold text-red-700">Not uploaded</Text>
                             )}
                           </View>
 
@@ -628,7 +628,7 @@ export default function AdminRequestReviewScreen() {
                       )}
 
                       {rejectionMode ? (
-                        <View className="gap-3 rounded-lg border border-primary-200 bg-primary-50 p-3.5">
+                        <View className="gap-3 rounded-lg border border-red-200 bg-red-50 p-3.5">
                           <TextField
                             label="Reason for rejection"
                             value={rejectionReason}
@@ -643,7 +643,7 @@ export default function AdminRequestReviewScreen() {
                           <View className="flex-row gap-2">
                             <Button
                               label="Confirm Rejection"
-                              variant="primary"
+                              variant="danger"
                               size="sm"
                               icon="cancel"
                               loading={busyAction === 'rejected'}

@@ -11,6 +11,7 @@ import {
   sendJson,
 } from './_lib/http';
 import { sendStatusNotificationEmail, type StatusEmailVariables } from './_lib/resend';
+import { isSmtpConfigured, sendStatusNotificationViaSmtp } from './_lib/smtp';
 import { getSupabaseAdmin } from './_lib/supabaseAdmin';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -125,7 +126,8 @@ function buildTemplatePayload(params: {
  * POST /api/notify-resident
  *
  * Staff-only serverless endpoint that dispatches a status or pickup reminder
- * alert to a resident via the official Resend SDK + published template when
+ * alert to a resident via custom/Gmail SMTP (`SMTP_USER`/`SMTP_PASS`) when
+ * configured, otherwise via the official Resend SDK + published template when
  * configured (with idempotency key per event/request), otherwise records an
  * in-app Realtime dispatch in `public.audit_logs`.
  */
@@ -225,14 +227,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         : `notify-${body.event}/${requestRow.id}`;
 
     const recipientEmail = authUserResult.data?.user?.email ?? null;
-    const emailResult = recipientEmail
-      ? await sendStatusNotificationEmail({
-          to: recipientEmail,
-          subject: templatePayload.subject,
-          idempotencyKey,
-          variables: templatePayload.variables,
-        })
-      : { sent: false };
+    let emailResult: { sent: boolean; emailId?: string } = { sent: false };
+    if (recipientEmail) {
+      const emailParams = {
+        to: recipientEmail,
+        subject: templatePayload.subject,
+        idempotencyKey,
+        variables: templatePayload.variables,
+      };
+      emailResult = isSmtpConfigured()
+        ? await sendStatusNotificationViaSmtp(emailParams)
+        : await sendStatusNotificationEmail(emailParams);
+    }
 
     const deliveredVia: NotifyResidentResponse['deliveredVia'] = emailResult.sent
       ? 'email'

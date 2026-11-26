@@ -453,7 +453,7 @@ export default function AdminSchedulesScreen() {
                             <View
                               className={`h-full rounded-full ${
                                 isFull
-                                  ? 'bg-primary'
+                                  ? 'bg-red-600'
                                   : ratio >= 0.75
                                     ? 'bg-amber-600'
                                     : 'bg-emerald-600'

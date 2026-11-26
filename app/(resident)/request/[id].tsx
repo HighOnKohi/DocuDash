@@ -418,7 +418,7 @@ export default function RequestDetailScreen() {
                       Present this pass and a valid ID at the barangay counter
                     </Text>
                   </View>
-                  <MaterialIcons name="qr-code-2" size={28} color={colors.surface} />
+                  <MaterialIcons name="qr-code-2" size={28} color={colors.accent} />
                 </View>
 
                 <View className="items-center gap-4 p-6">
@@ -678,7 +678,7 @@ export default function RequestDetailScreen() {
                         {files.length > 0 ? (
                           <MaterialIcons name="check-circle" size={18} color={colors.success} />
                         ) : (
-                          <Text className="text-xs font-semibold text-primary">Missing</Text>
+                          <Text className="text-xs font-semibold text-red-700">Missing</Text>
                         )}
                       </View>
 

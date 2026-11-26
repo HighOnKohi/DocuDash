@@ -1,24 +1,36 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import logoSource from '@/assets/images/logo.png';
 
 export interface BrandMarkProps {
   /** Show the "Barangay Document Services" tagline under the wordmark. */
   showTagline?: boolean;
+  /** Compact size for dense mobile headers. */
+  size?: 'sm' | 'md';
 }
 
-/** DocuDash logo lockup: icon tile plus wordmark. */
-export function BrandMark({ showTagline = true }: BrandMarkProps) {
+/** DocuDash logo lockup: official brand icon plus wordmark. */
+export function BrandMark({ showTagline = true, size = 'md' }: BrandMarkProps) {
+  const iconSize = size === 'sm' ? 36 : 48;
+  const borderRadius = size === 'sm' ? 8 : 12;
+  const titleClass =
+    size === 'sm' ? 'text-lg font-bold tracking-tight text-ink' : 'text-2xl font-bold tracking-tight text-ink';
+
   return (
     <View className="flex-row items-center gap-3" accessibilityRole="header" accessibilityLabel="DocuDash">
-      <View className="h-12 w-12 items-center justify-center rounded-xl bg-primary">
-        <MaterialIcons name="description" size={28} color={colors.surface} accessibilityElementsHidden importantForAccessibility="no" />
-      </View>
+      <Image
+        source={logoSource}
+        resizeMode="contain"
+        style={{ width: iconSize, height: iconSize, borderRadius }}
+        accessibilityElementsHidden
+        importantForAccessibility="no"
+      />
       <View>
-        <Text className="text-2xl font-bold tracking-tight text-ink">DocuDash</Text>
+        <Text className={titleClass}>DocuDash</Text>
         {showTagline ? (
-          <Text className="text-xs font-medium uppercase tracking-widest text-ink-subtle">Barangay Document Services</Text>
+          <Text className="text-xs font-medium uppercase tracking-widest text-ink-subtle">
+            Barangay Document Services
+          </Text>
         ) : null}
       </View>
     </View>

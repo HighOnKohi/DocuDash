@@ -84,7 +84,7 @@ export default function RegisterScreen() {
       >
         <View className="mx-auto w-full max-w-lg gap-6">
           <Pressable
-            onPress={() => router.replace('/')}
+            onPress={() => router.replace('/(auth)')}
             accessibilityRole="button"
             accessibilityLabel="Back to home"
             className="flex-row items-center gap-1.5 self-start py-1"

@@ -16,7 +16,7 @@
     "android": {
       "package": "ph.gov.barangay.docudash",
       "adaptiveIcon": {
-        "backgroundColor": "#FFFFFF",
+        "backgroundColor": "#01227F",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -32,7 +32,7 @@
       "favicon": "./assets/images/favicon.png",
       "name": "DocuDash",
       "shortName": "DocuDash",
-      "themeColor": "#991B1B",
+      "themeColor": "#01227F",
       "backgroundColor": "#F8FAFC"
     },
     "plugins": [
@@ -42,7 +42,7 @@
         {
           "backgroundColor": "#FFFFFF",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 140
         }
       ],
       [
@@ -51,6 +51,14 @@
           "cameraPermission": "Allow DocuDash to access your camera to scan resident QR pickup passes.",
           "recordAudioAndroid": false,
           "barcodeScannerEnabled": true
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "cmakeVersion": "3.31.6"
+          }
         }
       ]
     ],

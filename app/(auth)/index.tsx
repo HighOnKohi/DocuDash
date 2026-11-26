@@ -33,9 +33,11 @@ const FEATURES: FeatureCardProps[] = [
 ];
 
 /**
- * Public landing screen shown to unauthenticated visitors. Signed-in residents
- * and barangay staff are routed straight to `(resident)` or `(admin)` by the
- * root layout's `Stack.Protected` guards.
+ * Public landing screen shown to unauthenticated visitors at `/` (inside the
+ * `(auth)` group so redirects between `(auth)`, `(resident)`, and `(admin)`
+ * never collide on `/`). Signed-in residents and barangay staff are routed
+ * straight to `(resident)` or `(admin)` by the root layout's `Stack.Protected`
+ * guards.
  */
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
