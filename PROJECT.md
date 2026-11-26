@@ -2,9 +2,9 @@
 
 > Living source of truth for scope, progress, and operational state. Updated at the end of every phase.
 
-**Last updated:** 2026-11-26 (end of Phase 5)
-**Current phase:** Phase 5 — Barangay Admin Web Portal — `[x] Completed`
-**Next phase:** Phase 6 — Complete Documentation & Final Audit — `[ ] Pending` (awaiting go-ahead)
+**Last updated:** 2026-11-26 (end of Phase 6 — Project Complete)
+**Current phase:** Phase 6 — Complete Documentation & Final Audit — `[x] Completed`
+**Next phase:** Production deployment & user acceptance testing (all 6 build phases complete)
 
 ---
 
@@ -110,24 +110,24 @@ Legend: `[ ] Pending` · `[~] In Progress` · `[x] Completed`
 - [x] `app/(admin)/schedules.tsx` — pickup date, time window, and capacity management (single slot or standard 4-window day helper, inline capacity editing, unbooked deletion, Realtime capacity bars) — 2026-11-26
 - [x] `app/(admin)/scanner.tsx`, `components/QrScannerView.tsx` (`expo-camera`), and `components/QrScannerView.web.tsx` (webcam `getUserMedia` + `jsqr`) — camera QR scan plus manual token verification via `/api/verify-pickup`, verified release receipts, and session history — 2026-11-26
 
-### Phase 6 — Complete Documentation & Final Audit — `[ ] Pending`
+### Phase 6 — Complete Documentation & Final Audit — `[x] Completed` (2026-11-26)
 
-- [ ] `README.md` (app-level) — overview, setup, quickstart.
-- [ ] `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/API_AND_DB.md`, `docs/DEPLOYMENT.md`.
-- [ ] Security review: RLS matrix vs. code paths, secret scan, bundle check for service key.
-- [ ] Full TypeScript, lint, and web export verification.
-- [ ] Finalize this file with 100% status accuracy.
+- [x] `README.md` (app-level) — full project overview, features, tech stack, folder structure, quickstart, scripts, and links to `docs/` — 2026-11-26
+- [x] `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/API_AND_DB.md`, `docs/DEPLOYMENT.md` — Mermaid system/routing/lifecycle diagrams, verified RLS policy matrix, RA 10173 compliance, schema/RPC/API reference, and Supabase/Vercel/Resend/EAS deployment guides — 2026-11-26
+- [x] Security review — verified RLS matrix against `services/` and `api/`, 0 UI direct Supabase imports, 0 emojis in UI, 0 tracked `.env` files, 0 pattern or actual secret leaks in `dist/**/*.js` — 2026-11-26
+- [x] Full verification — `tsc --noEmit` (0 errors), `expo lint` (0 errors/warnings), `expo export -p web` (18 bundles), `expo-doctor` (20/20 checks passed) — 2026-11-26
+- [x] Finalized `PROJECT.md` with 100% status accuracy — 2026-11-26
 
 ---
 
 ## 3. File Inventory
 
-Paths are relative to the app root (`DocuDash/`).
+Paths are relative to the repository root (`./`).
 
 | File | Purpose | Status |
 | --- | --- | --- |
-| `PROJECT.md` | Living project master file and progress tracker | Created (Phase 1) |
-| `package.json` | Dependencies and scripts (`start`, `web`, `build:web`, `typecheck`, `lint`, `doctor`) | Updated (Phase 1) |
+| `PROJECT.md` | Living project master file and progress tracker | Finalized (Phase 6) |
+| `package.json` | Dependencies and scripts (`start`, `web`, `build:web`, `typecheck`, `lint`, `doctor`) | Updated (Phase 5) |
 | `app.json` | Expo config: light UI, Metro web bundler, SPA output, bundle IDs, `expo-camera` plugin (`recordAudioAndroid: false`) | Updated (Phase 5) |
 | `tsconfig.json` | Strict TS config, `@/*` → project root | Updated (Phase 1) |
 | `babel.config.js` | `babel-preset-expo` with NativeWind JSX import source | Created (Phase 1) |
@@ -171,7 +171,11 @@ Paths are relative to the app root (`DocuDash/`).
 | `app/(auth)/_layout.tsx`, `login.tsx`, `register.tsx` | Resident/staff login and RA 10173 registration screens | Created (Phase 4) |
 | `app/(resident)/_layout.tsx`, `index.tsx`, `request-new.tsx`, `request/[id].tsx`, `profile.tsx` | Resident tab navigator, dashboard, request form, QR tracker, profile & privacy | Created (Phase 4) |
 | `app/(admin)/_layout.tsx`, `index.tsx`, `requests/[id].tsx`, `schedules.tsx`, `scanner.tsx` | Staff web portal: sidebar, queue & metrics, 60s requirement viewer, schedule CRUD, QR scanner | Created (Phase 5) |
-| `README.md`, `docs/*.md` | Documentation (current `README.md` is the Expo template; replaced in Phase 6) | Pending (Phase 6) |
+| `README.md` | Complete app overview, features, tech stack, setup, quickstart, and scripts | Created (Phase 6) |
+| `docs/ARCHITECTURE.md` | System diagrams, 4-layer architecture, `Stack.Protected` routing, QR & Realtime flows | Created (Phase 6) |
+| `docs/SECURITY.md` | Full RLS policy matrix vs. code paths, triggers, RA 10173 compliance, secret hygiene | Created (Phase 6) |
+| `docs/API_AND_DB.md` | Complete Postgres schema, RPCs, Storage bucket, service layer, and `/api/*` spec | Created (Phase 6) |
+| `docs/DEPLOYMENT.md` | Supabase, Resend, Vercel, EAS mobile builds, and RA 10173 retention job guide | Created (Phase 6) |
 
 ---
 
@@ -248,6 +252,17 @@ Paths are relative to the app root (`DocuDash/`).
 - Bundle secret scan (`dist/**/*.js`) — 0 leaks of `SERVICE_ROLE`, `RESEND_API_KEY`, `supabaseAdmin`, or `re_*` tokens.
 - Layering scan (`app/`, `components/`) — 0 direct `@supabase/supabase-js` or client imports.
 
+### Verification results (Phase 6 — Final Audit, 2026-11-26)
+
+- JSON config syntax (`app.json`, `vercel.json`, `package.json`, `tsconfig.json`) — all valid.
+- `npx tsc --noEmit` — passes (0 errors).
+- `npx expo lint` — passes (0 warnings, 0 errors, including React Compiler rules).
+- `npx expo export -p web` — succeeds cleanly to `dist/` (18 route bundles).
+- `npx expo-doctor` — **20/20 checks passed**.
+- Bundle secret scan (`dist/**/*.js`) — 0 pattern matches (`SERVICE_ROLE`, `RESEND_API_KEY`, `CRON_SECRET`, `supabaseAdmin`, `api/_lib`, `re_*`) and 0 literal secret matches against local `.env` server keys.
+- Code hygiene & layering scan — 0 direct Supabase imports in `app/` or `components/`, 0 emojis in UI, 0 tracked `.env` files.
+- `npm audit --omit=dev` — 0 high/critical production advisories (3 moderate transitive advisories in Expo's `@expo/fingerprint` build tooling).
+
 ### Known issues / notes
 
 - **App root is the repository root.** Commit `13db8fd` moved the Expo project out of `DocuDash/` to the repo root. On Vercel, leave **Root Directory** as the default (`./`). A leftover template `DocuDash/README.md` can be deleted.
@@ -255,14 +270,15 @@ Paths are relative to the app root (`DocuDash/`).
 - **Storage upserts.** `requirements` has no UPDATE policy, so uploads must use `upsert: false` (replace = delete + upload). Phase 3 `storageService` must follow this.
 - **`@expo/vector-icons` deprecation notice.** Expo docs mark it as slated for deprecation in favor of `@react-native-vector-icons/*`. It is still the SDK 58-compatible package and is used per project requirements; migrating later is a mechanical import change.
 - **NativeWind version.** NativeWind 4.2.7 (stable, Tailwind 3) is used; NativeWind 5 is still a release candidate.
-- **`npm audit`** reports 3 moderate advisories in transitive dev tooling from the Expo template; no runtime impact identified. Re-check after Phase 6.
+- **`npm audit --omit=dev`** reports 3 moderate advisories in transitive Expo build tooling (`@expo/fingerprint`); 0 high/critical runtime vulnerabilities.
 
 ### Pending manual steps
 
-- [ ] Create a Supabase project and copy URL + anon key into `.env.local` (from `.env.example`).
-- [ ] Run migrations `001` → `004` in order in the Supabase SQL Editor (or `supabase db push`).
-- [ ] Create the Vercel project (default Root Directory) and add server-only variables.
+- [ ] Confirm migrations `001` → `004` are applied in your production Supabase SQL Editor and promote your first admin user (`update public.profiles set role = 'admin' where id = '<uuid>';`).
+- [ ] Add all client (`EXPO_PUBLIC_*`) and server-only (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ALLOWED_ORIGINS`, optional Resend vars) environment variables in Vercel Project Settings and deploy `main`.
+- [ ] *(Optional, for emailing real residents)* Register and verify a sending domain in Resend, then update `NOTIFICATION_FROM_EMAIL` from `onboarding@resend.dev` to your domain.
+- [ ] *(Optional)* Remove leftover template file `DocuDash/README.md`.
 
 ### Next actions
 
-1. Phase 6 — write complete documentation (`README.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/API_AND_DB.md`, `docs/DEPLOYMENT.md`), run the final security/RLS/secret/bundle audit, verify full TypeScript/lint/export/expo-doctor checks, and finalize `PROJECT.md`.
+1. Commit and push Phase 6 documentation & audit updates to `main`, verify the live Vercel deployment + Supabase Auth/RLS/Storage end-to-end flow, and optionally create EAS mobile builds (`docs/DEPLOYMENT.md`).
