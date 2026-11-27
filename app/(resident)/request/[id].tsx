@@ -478,7 +478,7 @@ export default function RequestDetailScreen() {
                 title="Request Rejected"
                 message={request.rejection_reason ?? 'No reason provided.'}
                 actionLabel="Submit a New Request"
-                onAction={() => router.push('/(resident)/request-new')}
+                onAction={() => router.push('/(resident)/(tabs)/request-new')}
               />
             ) : null}
 

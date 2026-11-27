@@ -1,77 +1,27 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
+import { Stack } from 'expo-router';
 
 import { colors } from '@/constants/theme';
 
-export default function ResidentLayout() {
+export const unstable_settings = {
+  anchor: '(tabs)',
+};
+
+/**
+ * Resident stack navigator wrapping the bottom tab bar (`(tabs)`) and pushed
+ * detail screens (`request/[id]`). Keeping `request/[id]` on the Stack instead
+ * of as a hidden tab avoids Expo Router SDK 58's automatic redirect for hidden
+ * tab routes (`href: null`) and provides proper back-stack navigation.
+ */
+export default function ResidentStackLayout() {
   return (
-    <Tabs
+    <Stack
       screenOptions={{
         headerShown: false,
-        sceneStyle: { backgroundColor: colors.surfaceMuted },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.inkSubtle,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 84 : 64,
-          paddingTop: 6,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
-        },
+        contentStyle: { backgroundColor: colors.surfaceMuted },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ focused, size }) => (
-            <MaterialIcons
-              name="dashboard"
-              size={size}
-              color={focused ? colors.primary : colors.inkSubtle}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="request-new"
-        options={{
-          title: 'New Request',
-          tabBarIcon: ({ focused, size }) => (
-            <MaterialIcons
-              name="post-add"
-              size={size}
-              color={focused ? colors.primary : colors.inkSubtle}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ focused, size }) => (
-            <MaterialIcons
-              name="person"
-              size={size}
-              color={focused ? colors.primary : colors.inkSubtle}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="request/[id]"
-        options={{
-          href: null,
-          title: 'Request Details',
-        }}
-      />
-    </Tabs>
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="request/[id]" />
+    </Stack>
   );
 }
