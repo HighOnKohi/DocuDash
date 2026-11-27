@@ -3,6 +3,7 @@ import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import type { Profile, ProfileUpdate, UserRole } from '@/types/database';
 
 import {
+  getAppOrigin,
   getSupabaseClient,
   requireAuthenticatedUserId,
   ServiceError,
@@ -94,6 +95,7 @@ export async function register(input: RegisterInput): Promise<RegisterResult> {
     email,
     password: input.password,
     options: {
+      emailRedirectTo: `${getAppOrigin()}/login`,
       data: {
         full_name: fullName,
         address,

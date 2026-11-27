@@ -104,7 +104,7 @@ Seeded with 4 barangay documents: **Barangay Clearance** (PHP 50), **Certificate
 ## 2. Vercel Serverless API (`api/`)
 
 All `/api/*` endpoints enforce:
-- Strict CORS (`ALLOWED_ORIGINS` + exact same-origin requests; `403 origin_not_allowed` otherwise)
+- Strict CORS (`https://docu-dash-ph.vercel.app` + `ALLOWED_ORIGINS` + exact same-origin requests; `403 origin_not_allowed` otherwise)
 - `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`
 - `Authorization: Bearer <supabase-access-token>` verified via `supabaseAdmin.auth.getUser(token)` + `profiles.role IN ('staff', 'admin')`
 - Standardized error envelope (`ApiErrorResponse`):
@@ -176,7 +176,7 @@ Dispatches a status update or pickup reminder alert to a resident and writes a `
 
 | Module | Key Exports |
 | --- | --- |
-| `services/supabase.ts` | `isSupabaseConfigured`, `getSupabaseClient`, `requireAuthenticatedUserId`, `callApi`, `ServiceError`, `toServiceError` |
+| `services/supabase.ts` | `PRODUCTION_APP_URL`, `isSupabaseConfigured`, `getSupabaseClient`, `requireAuthenticatedUserId`, `getApiBaseUrl`, `getAppOrigin`, `callApi`, `ServiceError`, `toServiceError` |
 | `services/authService.ts` | `register`, `login`, `logout`, `getSession`, `getCurrentUser`, `getCurrentProfile`, `updateProfile`, `onAuthStateChange`, `isStaffRole`, `isAdminRole` |
 | `services/requestService.ts` | `listDocumentTypes`, `createRequest`, `updateRequestPurpose`, `listResidentRequests`, `listAllRequests`, `getRequestById`, `startReview`, `approveRequest`, `rejectRequest`, `verifyPickupByQrToken`, `notifyResident`, `subscribeToRequest`, `subscribeToResidentRequests`, `subscribeToAllRequests` |
 | `services/storageService.ts` | `buildAttachmentPath`, `uploadRequirementAttachment`, `deleteRequirementAttachment`, `listRequestAttachments`, `getSignedAttachmentUrl` (`60s` TTL) |

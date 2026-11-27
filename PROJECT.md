@@ -185,13 +185,13 @@ Paths are relative to the repository root (`./`).
 
 - [ ] `EXPO_PUBLIC_SUPABASE_URL` — Supabase project URL.
 - [ ] `EXPO_PUBLIC_SUPABASE_ANON_KEY` — anon/public key (safe; RLS enforced).
-- [ ] `EXPO_PUBLIC_API_BASE_URL` — absolute Vercel URL for `/api` (required on native; optional on web, defaults to same origin).
+- [ ] `EXPO_PUBLIC_API_BASE_URL` — absolute Vercel URL for `/api` (optional on web, defaults to same origin; native builds default to `https://docu-dash-ph.vercel.app` when unset).
 
 ### Server-only (Vercel Project Settings → Environment Variables; never `EXPO_PUBLIC_`)
 
 - [ ] `SUPABASE_URL` — same project URL, read by `/api`.
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` — bypasses RLS; used only inside `/api`.
-- [ ] `ALLOWED_ORIGINS` — comma-separated CORS allow-list for `/api`.
+- [ ] `ALLOWED_ORIGINS` — comma-separated CORS allow-list for `/api` (`https://docu-dash-ph.vercel.app` is included by default).
 - [ ] `CRON_SECRET` — optional; protects the scheduled retention purge job.
 - [ ] `RESEND_API_KEY` — optional; sending-only Resend API key for `/api/notify-resident` (falls back to in-app Realtime + audit log when unset).
 - [ ] `NOTIFICATION_FROM_EMAIL` — optional; verified sender (or `DocuDash <onboarding@resend.dev>` for sandbox testing).
