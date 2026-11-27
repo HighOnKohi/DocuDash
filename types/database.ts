@@ -357,6 +357,26 @@ export interface NotifyResidentResponse {
   auditLogged: true;
 }
 
+/** Request payload accepted by Vercel `POST /api/purge-attachments`. */
+export interface PurgeAttachmentsPayload {
+  retentionDays?: number;
+  dryRun?: boolean;
+}
+
+/** Response returned by Vercel `POST /api/purge-attachments`. */
+export interface PurgeAttachmentsResponse {
+  ok: true;
+  retentionDays: number;
+  dryRun: boolean;
+  matchedCount: number;
+  purgedCount: number;
+  failedCount: number;
+  affectedRequestCount: number;
+  hasMore: boolean;
+  auditLogged: boolean;
+  triggeredBy: 'cron_secret' | 'admin';
+}
+
 /** Standard error response returned by Vercel `/api/*` endpoints. */
 export interface ApiErrorResponse {
   ok: false;

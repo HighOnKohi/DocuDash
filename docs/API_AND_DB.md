@@ -172,6 +172,39 @@ Dispatches a status update or pickup reminder alert to a resident and writes a `
 
 ---
 
+### `POST /api/purge-attachments`
+Purges resident requirement attachments from the private `requirements` bucket for requests completed or rejected at least `retentionDays` ago (default `30` days, RA 10173 compliance).
+
+**Authorization:** Either `Authorization: Bearer <CRON_SECRET>` (constant-time SHA-256 comparison; used by `.github/workflows/retention-purge.yml` or `supabase/retention_pg_cron.sql`) OR an authenticated admin JWT (`profiles.role = 'admin'`).
+
+**Request Body (optional — `PurgeAttachmentsPayload`):**
+```json
+{
+  "retentionDays": 30,
+  "dryRun": false
+}
+```
+
+**Success (`200 OK` — `PurgeAttachmentsResponse`):**
+```json
+{
+  "ok": true,
+  "retentionDays": 30,
+  "dryRun": false,
+  "matchedCount": 4,
+  "purgedCount": 4,
+  "failedCount": 0,
+  "affectedRequestCount": 2,
+  "hasMore": false,
+  "auditLogged": true,
+  "triggeredBy": "cron_secret"
+}
+```
+
+**Error Status Codes:** `400 invalid_retention_days` / `invalid_dry_run`, `401 missing_auth` / `invalid_token`, `403 forbidden`, `500 retention_lookup_failed`.
+
+---
+
 ## 3. Client Service Layer Summary (`services/`)
 
 | Module | Key Exports |

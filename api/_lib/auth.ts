@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { VercelRequest } from '@vercel/node';
 
 import type { UserRole } from '../../types/database';
@@ -10,6 +11,12 @@ export interface AuthenticatedStaff {
   role: Extract<UserRole, 'staff' | 'admin'>;
   fullName: string;
 }
+
+export type MaintenanceCaller =
+  | { kind: 'cron_secret'; actorId: null }
+  | { kind: 'admin'; actorId: string; staff: AuthenticatedStaff };
+
+const MIN_CRON_SECRET_LENGTH = 16;
 
 function extractBearerToken(req: VercelRequest): string {
   const rawHeader = req.headers.authorization;
@@ -25,6 +32,12 @@ function extractBearerToken(req: VercelRequest): string {
   }
 
   return token;
+}
+
+function constantTimeTokenMatch(provided: string, expected: string): boolean {
+  const providedDigest = createHash('sha256').update(provided, 'utf8').digest();
+  const expectedDigest = createHash('sha256').update(expected, 'utf8').digest();
+  return timingSafeEqual(providedDigest, expectedDigest);
 }
 
 /**
@@ -68,4 +81,32 @@ export async function requireStaff(req: VercelRequest): Promise<AuthenticatedSta
     role: profile.role,
     fullName: profile.full_name,
   };
+}
+
+/**
+ * Authorizes automated maintenance calls (GitHub Actions, Supabase pg_cron +
+ * pg_net, or any external scheduler) via `CRON_SECRET`, or manual runs by an
+ * authenticated administrator (`profiles.role = 'admin'`).
+ */
+export async function requireCronOrAdmin(req: VercelRequest): Promise<MaintenanceCaller> {
+  const token = extractBearerToken(req);
+  const configuredSecret = process.env.CRON_SECRET?.trim() ?? '';
+
+  if (
+    configuredSecret.length >= MIN_CRON_SECRET_LENGTH &&
+    constantTimeTokenMatch(token, configuredSecret)
+  ) {
+    return { kind: 'cron_secret', actorId: null };
+  }
+
+  const staff = await requireStaff(req);
+  if (staff.role !== 'admin') {
+    throw new HttpError(
+      403,
+      'forbidden',
+      'Only administrators or scheduled maintenance jobs can run retention purges.'
+    );
+  }
+
+  return { kind: 'admin', actorId: staff.userId, staff };
 }

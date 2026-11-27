@@ -106,9 +106,19 @@ npx eas-cli@latest build --platform ios --profile production
 
 ---
 
-## 5. RA 10173 30-Day Attachment Retention Job
+## 5. RA 10173 30-Day Attachment Retention Job (No Vercel Cron Required)
 
-To enforce automatic purging of uploaded IDs 30 days after request completion or rejection, run a daily scheduled job (e.g., Vercel Cron authenticated via `CRON_SECRET` or a Supabase scheduled Edge Function) that:
-1. Calls `supabaseAdmin.rpc('get_expired_attachment_paths', { p_retention_days: 30 })`.
-2. Removes returned `storage_path` files via `supabaseAdmin.storage.from('requirements').remove(paths)`.
-3. Deletes the matching `request_attachments` rows and appends a single `attachments_purged` audit log entry with the purged count (no PII).
+`POST /api/purge-attachments` queries `public.get_expired_attachment_paths(30)`, deletes expired ID files through the Supabase Storage API in 100-file batches (up to 500 per call), deletes the matching `request_attachments` rows only after Storage deletion succeeds, and appends a single PII-free `attachments_purged` audit log entry.
+
+First, generate a random secret (`openssl rand -hex 32`) and add it as `CRON_SECRET` in **Vercel Project Settings → Environment Variables**. Then pick either free automated scheduler (no Vercel Cron needed):
+
+### Option A — GitHub Actions (Already Configured)
+`.github/workflows/retention-purge.yml` runs automatically every day at **03:00 AM `Asia/Manila`** (`19:00 UTC`) and supports one-click manual runs (including `dry_run` preview) in the **Actions** tab:
+1. Open **GitHub Repository → Settings → Secrets and variables → Actions → New repository secret**.
+2. Add `CRON_SECRET` with the exact same value set in Vercel.
+3. *(Optional)* Test immediately via **Actions → RA 10173 Attachment Retention Purge → Run workflow** (try `dry_run: true` first).
+
+### Option B — Supabase Native `pg_cron` + `pg_net` (Never Pauses on Repo Inactivity)
+1. Enable `pg_cron` and `pg_net` in **Supabase Dashboard → Database → Extensions** (available on the Free tier).
+2. Open `supabase/retention_pg_cron.sql`, replace `<YOUR_CRON_SECRET>` with your Vercel `CRON_SECRET`, and run it once in the **SQL Editor**.
+3. The job (`docudash-ra10173-attachment-purge`) executes daily at **03:00 AM `Asia/Manila`** directly from Postgres using Supabase Vault.
