@@ -3,6 +3,7 @@ import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import type { Profile, ProfileUpdate, UserRole } from '@/types/database';
 
 import {
+  getAppOrigin,
   getSupabaseClient,
   requireAuthenticatedUserId,
   ServiceError,
@@ -103,6 +104,7 @@ export async function register(input: RegisterInput): Promise<RegisterResult> {
     email,
     password: input.password,
     options: {
+      emailRedirectTo: `${getAppOrigin()}/login`,
       data: {
         full_name: fullName,
         address,
@@ -179,15 +181,9 @@ export async function sendPasswordReset(email: string): Promise<void> {
   }
 
   const supabase = getSupabaseClient();
-  const redirectTo =
-    typeof window !== 'undefined' && window.location?.origin
-      ? `${window.location.origin}/login`
-      : undefined;
+  const redirectTo = `${getAppOrigin()}/login`;
 
-  const { error } = await supabase.auth.resetPasswordForEmail(
-    normalizedEmail,
-    redirectTo ? { redirectTo } : undefined
-  );
+  const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
   if (error) {
     throw toServiceError(error, 'Unable to send password reset email.');
   }

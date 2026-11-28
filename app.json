@@ -36,7 +36,12 @@
       "backgroundColor": "#F8FAFC"
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "origin": "https://docu-dash-ph.vercel.app"
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -68,6 +73,7 @@
     },
     "extra": {
       "router": {
+        "origin": "https://docu-dash-ph.vercel.app",
         "asyncRoutes": {
           "web": true
         }

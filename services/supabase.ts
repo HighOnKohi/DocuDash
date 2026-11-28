@@ -154,10 +154,15 @@ export async function requireAuthenticatedUserId(): Promise<string> {
   return userId;
 }
 
+/** Canonical production web & API domain for DocuDash on Vercel. */
+export const PRODUCTION_APP_URL = 'https://docu-dash-ph.vercel.app';
+
 /**
  * Resolves the base URL for Vercel `/api/*` endpoints.
- * On web, an empty `EXPO_PUBLIC_API_BASE_URL` defaults to the same origin.
- * On native (iOS / Android), an absolute URL is required.
+ * - Uses `EXPO_PUBLIC_API_BASE_URL` when explicitly set.
+ * - On web, defaults to `''` (same-origin `/api/*`, so both production and
+ *   Vercel preview deployments work without extra CORS configuration).
+ * - On native (iOS / Android), defaults to `PRODUCTION_APP_URL`.
  */
 export function getApiBaseUrl(): string {
   const configured = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, '') ?? '';
@@ -170,10 +175,20 @@ export function getApiBaseUrl(): string {
     return '';
   }
 
-  throw new ServiceError(
-    'API base URL is not configured. Set EXPO_PUBLIC_API_BASE_URL to your Vercel deployment URL.',
-    { code: 'api_not_configured' }
-  );
+  return PRODUCTION_APP_URL;
+}
+
+/**
+ * Resolves the public web origin used for browser redirects (such as Supabase
+ * Auth email confirmation links).
+ */
+export function getAppOrigin(): string {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin.replace(/\/+$/, '');
+  }
+
+  const configured = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, '') ?? '';
+  return configured || PRODUCTION_APP_URL;
 }
 
 /**

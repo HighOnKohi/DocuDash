@@ -90,12 +90,12 @@ cp .env.example .env.local
 Required for local client testing:
 - `EXPO_PUBLIC_SUPABASE_URL` — Supabase project URL
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon/public key
-- `EXPO_PUBLIC_API_BASE_URL` — Leave empty on web (same origin) or set to your Vercel deployment URL for native builds
+- `EXPO_PUBLIC_API_BASE_URL` — Leave empty on web (same origin); native builds default to `https://docu-dash-ph.vercel.app` when unset
 
 Required on Vercel (server-only, never prefixed with `EXPO_PUBLIC_`):
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `ALLOWED_ORIGINS` (comma-separated CORS allow-list)
+- `ALLOWED_ORIGINS` (comma-separated CORS allow-list; `https://docu-dash-ph.vercel.app` is included by default)
 - Optional: `RESEND_API_KEY` (sending-only), `NOTIFICATION_FROM_EMAIL`, `RESEND_TEMPLATE_ID`, `CRON_SECRET`
 
 ### 4. Apply Database Migrations

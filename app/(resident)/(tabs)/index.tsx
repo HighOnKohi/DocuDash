@@ -135,7 +135,7 @@ export default function ResidentDashboardScreen() {
               label="New Request"
               icon="post-add"
               size="sm"
-              onPress={() => router.push('/(resident)/request-new')}
+              onPress={() => router.push('/(resident)/(tabs)/request-new')}
             />
           </View>
         </View>
@@ -241,7 +241,7 @@ export default function ResidentDashboardScreen() {
             actionLabel={requests.length === 0 ? 'Start a Request' : 'Show All Requests'}
             onAction={() => {
               if (requests.length === 0) {
-                router.push('/(resident)/request-new');
+                router.push('/(resident)/(tabs)/request-new');
               } else {
                 setFilter('all');
               }

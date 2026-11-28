@@ -1,0 +1,83 @@
+name: RA 10173 Attachment Retention Purge
+
+on:
+  # Runs daily at 03:00 AM Asia/Manila (19:00 UTC) — no Vercel Cron required.
+  schedule:
+    - cron: '0 19 * * *'
+  # Allows one-click manual execution (and dry-runs) from the GitHub Actions tab.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview expired attachment count without deleting files'
+        type: boolean
+        default: false
+      retention_days:
+        description: 'Retention window in days (1-365)'
+        type: string
+        default: '30'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docudash-retention-purge
+  cancel-in-progress: false
+
+jobs:
+  purge-expired-attachments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger DocuDash retention purge endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          PURGE_API_URL: ${{ vars.DOCUDASH_API_BASE_URL || 'https://docu-dash-ph.vercel.app' }}
+          DRY_RUN: ${{ inputs.dry_run == true && 'true' || 'false' }}
+          RETENTION_DAYS: ${{ inputs.retention_days || '30' }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::Missing repository secret CRON_SECRET. Add the same CRON_SECRET configured in Vercel under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+          if ! [[ "${RETENTION_DAYS}" =~ ^[0-9]+$ ]] || [ "${RETENTION_DAYS}" -lt 1 ] || [ "${RETENTION_DAYS}" -gt 365 ]; then
+            echo "::error::retention_days must be an integer between 1 and 365."
+            exit 1
+          fi
+
+          ENDPOINT="${PURGE_API_URL%/}/api/purge-attachments"
+          BODY=$(printf '{"retentionDays":%s,"dryRun":%s}' "${RETENTION_DAYS}" "${DRY_RUN}")
+
+          # Loop cleanly if a large backlog requires more than one 500-file batch.
+          for attempt in 1 2 3 4 5; do
+            RESPONSE=$(curl --silent --show-error --max-time 25 \
+              --write-out "\n%{http_code}" \
+              --request POST "${ENDPOINT}" \
+              --header "Authorization: Bearer ${CRON_SECRET}" \
+              --header "Content-Type: application/json" \
+              --header "Accept: application/json" \
+              --data "${BODY}")
+
+            HTTP_STATUS=$(printf '%s\n' "${RESPONSE}" | tail -n 1)
+            PAYLOAD=$(printf '%s\n' "${RESPONSE}" | sed '$d')
+
+            echo "Batch ${attempt} -> HTTP ${HTTP_STATUS}: ${PAYLOAD}"
+
+            if [ "${HTTP_STATUS}" -lt 200 ] || [ "${HTTP_STATUS}" -ge 300 ]; then
+              echo "::error::Retention purge failed with HTTP ${HTTP_STATUS}."
+              exit 1
+            fi
+
+            HAS_MORE=$(printf '%s' "${PAYLOAD}" | jq -r '.hasMore // false')
+            FAILED=$(printf '%s' "${PAYLOAD}" | jq -r '.failedCount // 0')
+
+            if [ "${FAILED}" -gt 0 ]; then
+              echo "::warning::${FAILED} expired attachment(s) failed to purge and will be retried on the next run."
+            fi
+
+            if [ "${DRY_RUN}" = "true" ] || [ "${HAS_MORE}" != "true" ]; then
+              break
+            fi
+          done

@@ -17,7 +17,7 @@ This guide covers deploying DocuDash to **Supabase** (database, Auth, private St
    - **Storage:** `requirements` bucket exists and is marked **Private** (`public = false`).
    - **Database → Replication / Publications:** `supabase_realtime` includes `public.requests` and `public.pickup_slots`.
 4. **Authentication Settings:**
-   - Under **Authentication → URL Configuration**, set **Site URL** to your Vercel deployment URL (e.g., `https://docudash.vercel.app`) and add local/preview redirect URLs as needed.
+   - Under **Authentication → URL Configuration**, set **Site URL** to `https://docu-dash-ph.vercel.app` and add `https://docu-dash-ph.vercel.app/**` (plus local/preview URLs such as `http://localhost:8081/**`) under **Redirect URLs**.
    - *(Optional)* Under **Authentication → SMTP Settings**, configure Resend Custom SMTP (`smtp.resend.com`, port `465` SSL or `587` STARTTLS, username `resend`, password = your sending-only `RESEND_API_KEY`) once you have a verified domain. Without a custom domain, keep Supabase's default mailer or disable email confirmation during development.
 5. **Promote the First Admin Account:**
    Signup always creates `role = 'resident'`. Register your initial admin user in the app, copy their UUID from **Authentication → Users**, and run once in the SQL Editor:
@@ -66,7 +66,7 @@ The Expo app and `api/` live at the **repository root** (`./`).
    **Server-only (NEVER prefix with `EXPO_PUBLIC_`):**
    - `SUPABASE_URL` — `https://<ref>.supabase.co`
    - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role key
-   - `ALLOWED_ORIGINS` — Comma-separated allowed origins, e.g. `https://your-app.vercel.app,http://localhost:8081`
+   - `ALLOWED_ORIGINS` — Comma-separated allowed origins, e.g. `https://docu-dash-ph.vercel.app,http://localhost:8081` (`https://docu-dash-ph.vercel.app` is also included by default in `api/_lib/http.ts`)
    - `SMTP_HOST` *(optional)* — SMTP host for `/api/notify-resident` (defaults to `smtp.gmail.com`)
    - `SMTP_PORT` *(optional)* — SMTP port (`465` for SSL or `587` for STARTTLS; defaults to `465`)
    - `SMTP_USER` *(optional)* — SMTP login username (e.g. your Gmail address; takes priority over Resend when set with `SMTP_PASS`)
@@ -78,22 +78,23 @@ The Expo app and `api/` live at the **repository root** (`./`).
    - `CRON_SECRET` *(optional)* — Shared secret for scheduled RA 10173 retention purge jobs
 
 4. Deploy and verify:
-   - Visit the deployed URL; confirm landing page, login, registration, and staff portal load cleanly.
-   - Confirm `GET /api/verify-pickup` returns `405 method_not_allowed` JSON with `Cache-Control: no-store` (proving the serverless function is active and protected).
+   - Visit `https://docu-dash-ph.vercel.app`; confirm landing page, login, registration, and staff portal load cleanly.
+   - Confirm `GET https://docu-dash-ph.vercel.app/api/verify-pickup` returns `405 method_not_allowed` JSON with `Cache-Control: no-store` (proving the serverless function is active and protected).
 
 ---
 
 ## 4. Mobile Builds (Android & iOS with EAS)
 
-DocuDash uses Continuous Native Generation (CNG) — never commit manual `ios/` or `android/` folders. Because DocuDash includes `expo-camera` and `expo-document-picker`, use an EAS development build or preview/production build for native testing:
+DocuDash uses Continuous Native Generation (CNG) — never commit manual `ios/` or `android/` folders. Because DocuDash includes `expo-camera` and `expo-document-picker`, use a local native build (`npm run android` / `npm run ios`) or an EAS build for native testing:
 
 ```bash
 # Configure EAS once
 npx eas-cli@latest login
 npx eas-cli@latest build:configure
 
-# Set client environment variables in EAS (EXPO_PUBLIC_API_BASE_URL is REQUIRED on native!)
-# e.g. EXPO_PUBLIC_API_BASE_URL=https://your-app.vercel.app
+# Native builds default EXPO_PUBLIC_API_BASE_URL to https://docu-dash-ph.vercel.app when unset
+# Override in .env or EAS if targeting a staging/local API:
+# EXPO_PUBLIC_API_BASE_URL=https://docu-dash-ph.vercel.app
 
 # Development build (Android)
 npx eas-cli@latest build --platform android --profile development
@@ -105,9 +106,19 @@ npx eas-cli@latest build --platform ios --profile production
 
 ---
 
-## 5. RA 10173 30-Day Attachment Retention Job
+## 5. RA 10173 30-Day Attachment Retention Job (No Vercel Cron Required)
 
-To enforce automatic purging of uploaded IDs 30 days after request completion or rejection, run a daily scheduled job (e.g., Vercel Cron authenticated via `CRON_SECRET` or a Supabase scheduled Edge Function) that:
-1. Calls `supabaseAdmin.rpc('get_expired_attachment_paths', { p_retention_days: 30 })`.
-2. Removes returned `storage_path` files via `supabaseAdmin.storage.from('requirements').remove(paths)`.
-3. Deletes the matching `request_attachments` rows and appends a single `attachments_purged` audit log entry with the purged count (no PII).
+`POST /api/purge-attachments` queries `public.get_expired_attachment_paths(30)`, deletes expired ID files through the Supabase Storage API in 100-file batches (up to 500 per call), deletes the matching `request_attachments` rows only after Storage deletion succeeds, and appends a single PII-free `attachments_purged` audit log entry.
+
+First, generate a random secret (`openssl rand -hex 32`) and add it as `CRON_SECRET` in **Vercel Project Settings → Environment Variables**. Then pick either free automated scheduler (no Vercel Cron needed):
+
+### Option A — GitHub Actions (Already Configured)
+`.github/workflows/retention-purge.yml` runs automatically every day at **03:00 AM `Asia/Manila`** (`19:00 UTC`) and supports one-click manual runs (including `dry_run` preview) in the **Actions** tab:
+1. Open **GitHub Repository → Settings → Secrets and variables → Actions → New repository secret**.
+2. Add `CRON_SECRET` with the exact same value set in Vercel.
+3. *(Optional)* Test immediately via **Actions → RA 10173 Attachment Retention Purge → Run workflow** (try `dry_run: true` first).
+
+### Option B — Supabase Native `pg_cron` + `pg_net` (Never Pauses on Repo Inactivity)
+1. Enable `pg_cron` and `pg_net` in **Supabase Dashboard → Database → Extensions** (available on the Free tier).
+2. Open `supabase/retention_pg_cron.sql`, replace `<YOUR_CRON_SECRET>` with your Vercel `CRON_SECRET`, and run it once in the **SQL Editor**.
+3. The job (`docudash-ra10173-attachment-purge`) executes daily at **03:00 AM `Asia/Manila`** directly from Postgres using Supabase Vault.

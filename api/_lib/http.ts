@@ -14,12 +14,15 @@ export class HttpError extends Error {
   }
 }
 
+const DEFAULT_ALLOWED_ORIGINS = ['https://docu-dash-ph.vercel.app'];
+
 function getAllowedOrigins(): string[] {
   const raw = process.env.ALLOWED_ORIGINS ?? '';
-  return raw
+  const configured = raw
     .split(',')
     .map((origin) => origin.trim().replace(/\/+$/, ''))
     .filter(Boolean);
+  return Array.from(new Set([...DEFAULT_ALLOWED_ORIGINS, ...configured]));
 }
 
 function isSameOriginRequest(req: VercelRequest, origin: string): boolean {
