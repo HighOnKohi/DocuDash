@@ -1,8 +1,9 @@
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 
-import type { Profile, ProfileUpdate, UserRole } from '@/types/database';
+import type { DeleteAccountResponse, Profile, ProfileUpdate, UserRole } from '@/types/database';
 
 import {
+  callApi,
   getAppOrigin,
   getSupabaseClient,
   requireAuthenticatedUserId,
@@ -171,6 +172,29 @@ export async function logout(): Promise<void> {
   if (error) {
     throw toServiceError(error, 'Unable to sign out.');
   }
+}
+
+/**
+ * Permanently erases the current resident account, uploaded requirement files,
+ * requests, and reserved pickup slots via Vercel `POST /api/delete-account`.
+ */
+export async function deleteAccount(confirmation: string): Promise<DeleteAccountResponse> {
+  if (confirmation.trim() !== 'DELETE') {
+    throw new ServiceError('Type DELETE in uppercase to confirm permanent account deletion.', {
+      code: 'confirmation_required',
+    });
+  }
+
+  const result = await callApi<DeleteAccountResponse>('/api/delete-account', {
+    method: 'POST',
+    body: { confirmation: 'DELETE' },
+  });
+
+  await getSupabaseClient()
+    .auth.signOut({ scope: 'local' })
+    .catch(() => {});
+
+  return result;
 }
 
 /** Sends a password reset link to the specified email address. */

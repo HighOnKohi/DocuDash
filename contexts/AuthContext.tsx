@@ -10,6 +10,7 @@ import {
 } from 'react';
 
 import {
+  deleteAccount as deleteAccountService,
   getCurrentProfile,
   getSession,
   isAdminRole,
@@ -24,8 +25,9 @@ import {
   type RegisterInput,
   type RegisterResult,
 } from '@/services/authService';
+import { cancelAllDocuDashNotifications } from '@/services/notificationService';
 import { isSupabaseConfigured, toServiceError } from '@/services/supabase';
-import type { Profile, ProfileUpdate } from '@/types/database';
+import type { DeleteAccountResponse, Profile, ProfileUpdate } from '@/types/database';
 
 export interface AuthContextValue {
   session: Session | null;
@@ -39,6 +41,7 @@ export interface AuthContextValue {
   signIn: (input: LoginInput) => Promise<LoginResult>;
   signUp: (input: RegisterInput) => Promise<RegisterResult>;
   signOut: () => Promise<void>;
+  deleteAccount: (confirmation: string) => Promise<DeleteAccountResponse>;
   refreshProfile: () => Promise<Profile | null>;
   updateProfile: (updates: ProfileUpdate) => Promise<Profile>;
 }
@@ -139,9 +142,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const signOut = useCallback(async (): Promise<void> => {
     await logout();
+    await cancelAllDocuDashNotifications().catch(() => {});
     setSession(null);
     setProfile(null);
   }, []);
+
+  const deleteAccount = useCallback(
+    async (confirmation: string): Promise<DeleteAccountResponse> => {
+      const result = await deleteAccountService(confirmation);
+      await cancelAllDocuDashNotifications().catch(() => {});
+      setSession(null);
+      setProfile(null);
+      return result;
+    },
+    []
+  );
 
   const refreshProfile = useCallback(async (): Promise<Profile | null> => {
     if (!session?.user) {
@@ -182,6 +197,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         signIn,
         signUp,
         signOut,
+        deleteAccount,
         refreshProfile,
         updateProfile,
       }}

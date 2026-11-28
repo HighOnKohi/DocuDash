@@ -29,7 +29,8 @@ export type AuditAction =
   | 'pickup_verified'
   | 'attachment_viewed'
   | 'attachments_purged'
-  | 'notification_dispatched';
+  | 'notification_dispatched'
+  | 'account_deleted';
 
 export interface Database {
   public: {
@@ -375,6 +376,19 @@ export interface PurgeAttachmentsResponse {
   hasMore: boolean;
   auditLogged: boolean;
   triggeredBy: 'cron_secret' | 'admin';
+}
+
+/** Request payload accepted by Vercel `POST /api/delete-account`. */
+export interface DeleteAccountPayload {
+  confirmation: 'DELETE';
+}
+
+/** Response returned by Vercel `POST /api/delete-account`. */
+export interface DeleteAccountResponse {
+  ok: true;
+  deletedRequestsCount: number;
+  deletedAttachmentsCount: number;
+  auditLogged: boolean;
 }
 
 /** Standard error response returned by Vercel `/api/*` endpoints. */

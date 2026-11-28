@@ -5,6 +5,13 @@ import type { UserRole } from '../../types/database';
 import { HttpError } from './http';
 import { getSupabaseAdmin } from './supabaseAdmin';
 
+export interface AuthenticatedUser {
+  userId: string;
+  email: string | null;
+  role: UserRole;
+  fullName: string;
+}
+
 export interface AuthenticatedStaff {
   userId: string;
   email: string | null;
@@ -41,10 +48,10 @@ function constantTimeTokenMatch(provided: string, expected: string): boolean {
 }
 
 /**
- * Verifies the caller's Supabase JWT against Supabase Auth and ensures the
- * corresponding profile has role `staff` or `admin`.
+ * Verifies the caller's Supabase JWT against Supabase Auth and loads their
+ * `profiles` record for any signed-in role (`resident`, `staff`, or `admin`).
  */
-export async function requireStaff(req: VercelRequest): Promise<AuthenticatedStaff> {
+export async function requireAuthenticatedUser(req: VercelRequest): Promise<AuthenticatedUser> {
   const token = extractBearerToken(req);
   const supabaseAdmin = getSupabaseAdmin();
 
@@ -64,10 +71,29 @@ export async function requireStaff(req: VercelRequest): Promise<AuthenticatedSta
     .maybeSingle();
 
   if (profileError) {
-    throw new HttpError(500, 'profile_lookup_failed', 'Unable to verify staff permissions.');
+    throw new HttpError(500, 'profile_lookup_failed', 'Unable to verify user permissions.');
   }
 
-  if (!profile || (profile.role !== 'staff' && profile.role !== 'admin')) {
+  if (!profile) {
+    throw new HttpError(404, 'profile_not_found', 'User account profile was not found.');
+  }
+
+  return {
+    userId: profile.id,
+    email: user.email ?? null,
+    role: profile.role,
+    fullName: profile.full_name,
+  };
+}
+
+/**
+ * Verifies the caller's Supabase JWT against Supabase Auth and ensures the
+ * corresponding profile has role `staff` or `admin`.
+ */
+export async function requireStaff(req: VercelRequest): Promise<AuthenticatedStaff> {
+  const user = await requireAuthenticatedUser(req);
+
+  if (user.role !== 'staff' && user.role !== 'admin') {
     throw new HttpError(
       403,
       'forbidden',
@@ -76,10 +102,10 @@ export async function requireStaff(req: VercelRequest): Promise<AuthenticatedSta
   }
 
   return {
-    userId: profile.id,
-    email: user.email ?? null,
-    role: profile.role,
-    fullName: profile.full_name,
+    userId: user.userId,
+    email: user.email,
+    role: user.role,
+    fullName: user.fullName,
   };
 }
 

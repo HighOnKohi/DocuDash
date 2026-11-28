@@ -205,6 +205,30 @@ Purges resident requirement attachments from the private `requirements` bucket f
 
 ---
 
+### `POST /api/delete-account`
+Self-service RA 10173 right-to-erasure endpoint for resident accounts. Deletes all private Storage requirement files under the resident's account first, records a PII-free `account_deleted` entry in `audit_logs`, and deletes the Supabase Auth user (cascading `profiles`, `requests`, and `request_attachments`, and releasing open pickup slots via trigger). Staff/admin self-deletion is blocked (`403 staff_self_delete_forbidden`).
+
+**Request Body (`DeleteAccountPayload`):**
+```json
+{
+  "confirmation": "DELETE"
+}
+```
+
+**Success (`200 OK` — `DeleteAccountResponse`):**
+```json
+{
+  "ok": true,
+  "deletedRequestsCount": 2,
+  "deletedAttachmentsCount": 4,
+  "auditLogged": true
+}
+```
+
+**Error Status Codes:** `400 confirmation_required`, `401 missing_auth` / `invalid_token`, `403 staff_self_delete_forbidden`, `500 storage_cleanup_failed` / `account_delete_failed`.
+
+---
+
 ## 3. Client Service Layer Summary (`services/`)
 
 | Module | Key Exports |

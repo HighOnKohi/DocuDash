@@ -65,6 +65,16 @@
             "cmakeVersion": "3.31.6"
           }
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "largeIcon": "./assets/images/logo.png",
+          "color": "#01227F",
+          "defaultChannel": "docudash-updates",
+          "enableRemoteNotifications": false
+        }
       ]
     ],
     "experiments": {

@@ -1,11 +1,13 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useState, type ComponentProps } from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
+import { Linking, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 
 import type { ThemePreference } from '@/constants/theme';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
 import { Button } from './Button';
+import { PrivacyPolicyModal } from './PrivacyPolicyModal';
 import { TermsModal } from './TermsModal';
 
 type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
@@ -32,7 +34,26 @@ export interface SettingsModalProps {
  */
 export function SettingsModal({ visible, onClose }: SettingsModalProps) {
   const { preference, setPreference, colors, themeVars } = useTheme();
+  const {
+    isSupported,
+    permissionStatus,
+    enabled,
+    busy,
+    enableNotifications,
+    disableNotifications,
+  } = useNotifications();
   const [termsVisible, setTermsVisible] = useState(false);
+  const [privacyVisible, setPrivacyVisible] = useState(false);
+
+  const notificationsActive = isSupported && enabled && permissionStatus === 'granted';
+
+  async function handleToggleNotifications() {
+    if (notificationsActive) {
+      await disableNotifications();
+    } else {
+      await enableNotifications();
+    }
+  }
 
   return (
     <>
@@ -41,7 +62,7 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
           style={themeVars}
           className="flex-1 items-center justify-center bg-black/60 px-4 py-6"
         >
-          <View className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-surface shadow-xl">
+          <View className="max-h-[88%] w-full max-w-md overflow-hidden rounded-2xl border border-border bg-surface shadow-xl">
             <View className="flex-row items-center justify-between border-b border-border px-5 py-4">
               <View className="flex-row items-center gap-2.5">
                 <View className="h-9 w-9 items-center justify-center rounded-lg bg-primary-50">
@@ -49,7 +70,9 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
                 </View>
                 <View>
                   <Text className="text-base font-bold text-ink">Settings</Text>
-                  <Text className="text-xs text-ink-subtle">Appearance &amp; legal information</Text>
+                  <Text className="text-xs text-ink-subtle">
+                    Appearance, notifications &amp; legal
+                  </Text>
                 </View>
               </View>
               <Pressable
@@ -63,81 +86,202 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
               </Pressable>
             </View>
 
-            <View className="gap-5 p-5">
-              {/* Appearance selector */}
-              <View className="gap-2.5">
-                <Text className="text-xs font-bold uppercase tracking-wider text-ink-subtle">
-                  Appearance
-                </Text>
-                <View className="flex-row gap-2">
-                  {THEME_OPTIONS.map((option) => {
-                    const active = preference === option.value;
-                    return (
-                      <Pressable
-                        key={option.value}
-                        onPress={() => setPreference(option.value)}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: active }}
-                        accessibilityLabel={`Use ${option.label} theme`}
-                        className={`flex-1 items-center gap-1.5 rounded-xl border py-3 ${
-                          active
-                            ? 'border-primary bg-primary-50'
-                            : 'border-border bg-surface-muted'
-                        }`}
-                      >
-                        <MaterialIcons
-                          name={option.icon}
-                          size={20}
-                          color={active ? colors.primary : colors.inkMuted}
-                        />
-                        <Text
-                          className={`text-xs font-semibold ${
-                            active ? 'text-primary' : 'text-ink-muted'
+            <ScrollView showsVerticalScrollIndicator>
+              <View className="gap-5 p-5">
+                {/* Appearance selector */}
+                <View className="gap-2.5">
+                  <Text className="text-xs font-bold uppercase tracking-wider text-ink-subtle">
+                    Appearance
+                  </Text>
+                  <View className="flex-row gap-2">
+                    {THEME_OPTIONS.map((option) => {
+                      const active = preference === option.value;
+                      return (
+                        <Pressable
+                          key={option.value}
+                          onPress={() => setPreference(option.value)}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: active }}
+                          accessibilityLabel={`Use ${option.label} theme`}
+                          className={`flex-1 items-center gap-1.5 rounded-xl border py-3 ${
+                            active
+                              ? 'border-primary bg-primary-50'
+                              : 'border-border bg-surface-muted'
                           }`}
                         >
-                          {option.label}
+                          <MaterialIcons
+                            name={option.icon}
+                            size={20}
+                            color={active ? colors.primary : colors.inkMuted}
+                          />
+                          <Text
+                            className={`text-xs font-semibold ${
+                              active ? 'text-primary' : 'text-ink-muted'
+                            }`}
+                          >
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                {/* Mobile notifications */}
+                <View className="gap-2">
+                  <Text className="text-xs font-bold uppercase tracking-wider text-ink-subtle">
+                    Notifications
+                  </Text>
+                  <View className="gap-3 rounded-xl border border-border bg-surface-muted p-3.5">
+                    {isSupported ? (
+                      <>
+                        <View className="flex-row items-center justify-between gap-2">
+                          <View className="flex-1 flex-row items-center gap-2.5">
+                            <MaterialIcons
+                              name={
+                                notificationsActive
+                                  ? 'notifications-active'
+                                  : 'notifications-off'
+                              }
+                              size={18}
+                              color={notificationsActive ? colors.primary : colors.inkSubtle}
+                            />
+                            <View className="flex-1">
+                              <Text className="text-sm font-semibold text-ink">
+                                Device Status Alerts
+                              </Text>
+                              <Text className="text-[11px] leading-4 text-ink-subtle">
+                                Local alerts &amp; pickup slot reminders
+                              </Text>
+                            </View>
+                          </View>
+                          <View
+                            className={`rounded-full px-2.5 py-0.5 ${
+                              notificationsActive
+                                ? 'bg-emerald-100 dark:bg-emerald-950'
+                                : permissionStatus === 'denied'
+                                  ? 'bg-red-100 dark:bg-red-950'
+                                  : 'bg-surface'
+                            }`}
+                          >
+                            <Text
+                              className={`text-[11px] font-bold ${
+                                notificationsActive
+                                  ? 'text-emerald-800 dark:text-emerald-300'
+                                  : permissionStatus === 'denied'
+                                    ? 'text-red-700 dark:text-red-300'
+                                    : 'text-ink-muted'
+                              }`}
+                            >
+                              {notificationsActive
+                                ? 'Active'
+                                : permissionStatus === 'denied'
+                                  ? 'Blocked'
+                                  : 'Paused'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {permissionStatus === 'denied' ? (
+                          <Button
+                            label="Open Device Settings"
+                            size="sm"
+                            variant="outline"
+                            icon="open-in-new"
+                            onPress={() => void Linking.openSettings()}
+                            fullWidth
+                          />
+                        ) : (
+                          <Button
+                            label={notificationsActive ? 'Pause Device Alerts' : 'Enable Device Alerts'}
+                            size="sm"
+                            variant={notificationsActive ? 'outline' : 'primary'}
+                            icon={notificationsActive ? 'notifications-off' : 'notifications'}
+                            loading={busy}
+                            onPress={() => void handleToggleNotifications()}
+                            fullWidth
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <View className="flex-row items-start gap-2.5">
+                        <MaterialIcons
+                          name="notifications-none"
+                          size={18}
+                          color={colors.primary}
+                          style={{ marginTop: 2 }}
+                        />
+                        <Text className="flex-1 text-xs leading-4 text-ink-muted">
+                          Email alerts &amp; live status updates are active on web. Device alert
+                          banners &amp; pickup reminders run on the Android/iOS mobile app.
                         </Text>
-                      </Pressable>
-                    );
-                  })}
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                {/* Legal & Privacy */}
+                <View className="gap-2">
+                  <Text className="text-xs font-bold uppercase tracking-wider text-ink-subtle">
+                    Legal &amp; Privacy
+                  </Text>
+                  <Pressable
+                    onPress={() => setPrivacyVisible(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="View Privacy Policy"
+                    className="flex-row items-center justify-between rounded-xl border border-border bg-surface-muted px-4 py-3"
+                  >
+                    <View className="flex-row items-center gap-3">
+                      <MaterialIcons name="privacy-tip" size={18} color={colors.primary} />
+                      <View>
+                        <Text className="text-sm font-semibold text-ink">Privacy Policy</Text>
+                        <Text className="text-[11px] text-ink-subtle">
+                          RA 10173 data handling &amp; your rights
+                        </Text>
+                      </View>
+                    </View>
+                    <MaterialIcons name="chevron-right" size={20} color={colors.inkSubtle} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setTermsVisible(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="View Terms and Conditions"
+                    className="flex-row items-center justify-between rounded-xl border border-border bg-surface-muted px-4 py-3"
+                  >
+                    <View className="flex-row items-center gap-3">
+                      <MaterialIcons name="gavel" size={18} color={colors.primary} />
+                      <View>
+                        <Text className="text-sm font-semibold text-ink">
+                          Terms &amp; Conditions
+                        </Text>
+                        <Text className="text-[11px] text-ink-subtle">
+                          Portal guidelines &amp; 30-day retention
+                        </Text>
+                      </View>
+                    </View>
+                    <MaterialIcons name="chevron-right" size={20} color={colors.inkSubtle} />
+                  </Pressable>
+                </View>
+
+                <View className="gap-3 border-t border-border pt-3">
+                  <Text className="text-[11px] leading-4 text-ink-subtle">
+                    Need help with a request or account? Visit your Barangay Hall Office counter
+                    with your request reference number.
+                  </Text>
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-xs text-ink-subtle">
+                      DocuDash v1.0.0 · Barangay Services
+                    </Text>
+                    <Button label="Done" size="sm" variant="primary" onPress={onClose} />
+                  </View>
                 </View>
               </View>
-
-              {/* Legal & Privacy */}
-              <View className="gap-2">
-                <Text className="text-xs font-bold uppercase tracking-wider text-ink-subtle">
-                  Legal &amp; Privacy
-                </Text>
-                <Pressable
-                  onPress={() => setTermsVisible(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel="View Terms and Conditions"
-                  className="flex-row items-center justify-between rounded-xl border border-border bg-surface-muted px-4 py-3"
-                >
-                  <View className="flex-row items-center gap-3">
-                    <MaterialIcons name="gavel" size={18} color={colors.primary} />
-                    <View>
-                      <Text className="text-sm font-semibold text-ink">Terms &amp; Conditions</Text>
-                      <Text className="text-[11px] text-ink-subtle">
-                        Portal guidelines &amp; RA 10173 retention
-                      </Text>
-                    </View>
-                  </View>
-                  <MaterialIcons name="chevron-right" size={20} color={colors.inkSubtle} />
-                </Pressable>
-              </View>
-
-              <View className="flex-row items-center justify-between border-t border-border pt-3">
-                <Text className="text-xs text-ink-subtle">
-                  DocuDash v1.0.0 · Barangay Document Services
-                </Text>
-                <Button label="Done" size="sm" variant="primary" onPress={onClose} />
-              </View>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
 
+      <PrivacyPolicyModal visible={privacyVisible} onClose={() => setPrivacyVisible(false)} />
       <TermsModal visible={termsVisible} onClose={() => setTermsVisible(false)} />
     </>
   );

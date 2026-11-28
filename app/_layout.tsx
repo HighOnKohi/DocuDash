@@ -14,6 +14,7 @@ import { ActivityIndicator, Text, View } from 'react-native';
 
 import { BrandMark } from '@/components/BrandMark';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { NotificationProvider } from '@/contexts/NotificationContext';
 import { AppThemeProvider, useTheme } from '@/contexts/ThemeContext';
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -104,8 +105,10 @@ function RootThemedShell() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <View className="flex-1 bg-surface-muted" style={themeVars}>
         <AuthProvider>
-          <SplashScreenController />
-          <RootNavigator />
+          <NotificationProvider>
+            <SplashScreenController />
+            <RootNavigator />
+          </NotificationProvider>
         </AuthProvider>
       </View>
     </ThemeProvider>

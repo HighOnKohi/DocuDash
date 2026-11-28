@@ -1,16 +1,27 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useState, type ComponentProps } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
+import { DeleteAccountModal } from '@/components/DeleteAccountModal';
+import { PrivacyPolicyModal } from '@/components/PrivacyPolicyModal';
 import { Banner } from '@/components/StateView';
 import { TermsModal } from '@/components/TermsModal';
 import { TextField } from '@/components/TextField';
 import { formatDateTime } from '@/constants/format';
 import type { ThemePreference } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { toServiceError } from '@/services/supabase';
 
@@ -24,7 +35,16 @@ const THEME_OPTIONS: { value: ThemePreference; label: string; icon: MaterialIcon
 
 export default function ResidentProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, profile, updateProfile, signOut } = useAuth();
+  const { user, profile, updateProfile, signOut, deleteAccount } = useAuth();
+  const {
+    isSupported: notificationsSupported,
+    permissionStatus,
+    enabled: notificationsEnabled,
+    busy: notificationsBusy,
+    enableNotifications,
+    disableNotifications,
+    sendTestAlert,
+  } = useNotifications();
   const { preference, setPreference, colors } = useTheme();
 
   const [fullNameDraft, setFullNameDraft] = useState<string | null>(null);
@@ -34,9 +54,18 @@ export default function ResidentProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [termsVisible, setTermsVisible] = useState(false);
+  const [privacyVisible, setPrivacyVisible] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [notificationNotice, setNotificationNotice] = useState<{
+    tone: 'success' | 'warning' | 'error';
+    message: string;
+  } | null>(null);
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(
     null
   );
+
+  const notificationsActive =
+    notificationsSupported && notificationsEnabled && permissionStatus === 'granted';
 
   const fullName = fullNameDraft ?? profile?.full_name ?? '';
   const contactNumber = contactNumberDraft ?? profile?.contact_number ?? '';
@@ -82,6 +111,49 @@ export default function ResidentProfileScreen() {
         message: toServiceError(error, 'Unable to sign out.').message,
       });
       setSigningOut(false);
+    }
+  }
+
+  async function handleToggleNotifications() {
+    setNotificationNotice(null);
+    if (notificationsActive) {
+      await disableNotifications();
+      setNotificationNotice({
+        tone: 'warning',
+        message: 'Device alerts paused. You can re-enable them anytime.',
+      });
+      return;
+    }
+
+    const status = await enableNotifications();
+    if (status === 'granted') {
+      setNotificationNotice({
+        tone: 'success',
+        message: 'Mobile alerts enabled for request updates and pickup reminders.',
+      });
+    } else if (status === 'denied') {
+      setNotificationNotice({
+        tone: 'error',
+        message:
+          'Notification permission is blocked in your device settings. Open settings to allow DocuDash alerts.',
+      });
+    }
+  }
+
+  async function handleSendTestNotification() {
+    setNotificationNotice(null);
+    const sent = await sendTestAlert();
+    if (sent) {
+      setNotificationNotice({
+        tone: 'success',
+        message: 'Test alert triggered! Check your device notification shade.',
+      });
+    } else {
+      setNotificationNotice({
+        tone: 'error',
+        message:
+          'Allow notifications in your device settings to receive mobile alerts and pickup reminders.',
+      });
     }
   }
 
@@ -225,13 +297,102 @@ export default function ResidentProfileScreen() {
                 })}
               </View>
 
-              <Button
-                label="View Terms & Conditions"
-                variant="outline"
-                size="sm"
-                icon="gavel"
-                onPress={() => setTermsVisible(true)}
-              />
+              <View className="flex-row flex-wrap gap-2.5">
+                <Button
+                  label="View Privacy Policy"
+                  variant="outline"
+                  size="sm"
+                  icon="privacy-tip"
+                  onPress={() => setPrivacyVisible(true)}
+                />
+                <Button
+                  label="View Terms & Conditions"
+                  variant="outline"
+                  size="sm"
+                  icon="gavel"
+                  onPress={() => setTermsVisible(true)}
+                />
+              </View>
+            </View>
+          </Card>
+
+          {/* Mobile notifications */}
+          <Card
+            title="Mobile Notifications"
+            subtitle="Receive status updates and pickup slot reminders on this device."
+          >
+            <View className="gap-3">
+              {notificationNotice ? (
+                <Banner tone={notificationNotice.tone} message={notificationNotice.message} />
+              ) : null}
+
+              {notificationsSupported ? (
+                <>
+                  <View className="flex-row items-center justify-between rounded-xl border border-border bg-surface-muted px-4 py-3">
+                    <View className="flex-1 flex-row items-center gap-3 pr-2">
+                      <MaterialIcons
+                        name={notificationsActive ? 'notifications-active' : 'notifications-off'}
+                        size={20}
+                        color={notificationsActive ? colors.primary : colors.inkSubtle}
+                      />
+                      <View className="flex-1">
+                        <Text className="text-sm font-semibold text-ink">
+                          {notificationsActive
+                            ? 'Device Alerts Enabled'
+                            : permissionStatus === 'denied'
+                              ? 'Blocked in Device Settings'
+                              : 'Device Alerts Paused'}
+                        </Text>
+                        <Text className="text-xs text-ink-subtle">
+                          Triggers local alerts when status changes and reminds you before pickup.
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View className="flex-row flex-wrap gap-2.5">
+                    {permissionStatus === 'denied' ? (
+                      <Button
+                        label="Open Device Settings"
+                        variant="outline"
+                        size="sm"
+                        icon="open-in-new"
+                        onPress={() => void Linking.openSettings()}
+                      />
+                    ) : (
+                      <Button
+                        label={notificationsActive ? 'Pause Alerts' : 'Enable Alerts'}
+                        variant={notificationsActive ? 'outline' : 'primary'}
+                        size="sm"
+                        icon={notificationsActive ? 'notifications-off' : 'notifications'}
+                        loading={notificationsBusy}
+                        onPress={() => void handleToggleNotifications()}
+                      />
+                    )}
+                    <Button
+                      label="Send Test Alert"
+                      variant="outline"
+                      size="sm"
+                      icon="notifications"
+                      loading={notificationsBusy}
+                      onPress={() => void handleSendTestNotification()}
+                    />
+                  </View>
+                </>
+              ) : (
+                <View className="flex-row items-start gap-2.5 rounded-xl border border-border bg-surface-muted p-3.5">
+                  <MaterialIcons
+                    name="notifications-none"
+                    size={18}
+                    color={colors.primary}
+                    style={{ marginTop: 2 }}
+                  />
+                  <Text className="flex-1 text-xs leading-5 text-ink-muted">
+                    Email alerts and real-time in-app updates are active in your browser. Device
+                    push banners and pickup reminders run on the Android &amp; iOS mobile app.
+                  </Text>
+                </View>
+              )}
             </View>
           </Card>
 
@@ -291,7 +452,8 @@ export default function ResidentProfileScreen() {
                   <Text className="flex-1 text-xs leading-5 text-ink-muted">
                     <Text className="font-semibold text-ink">Your rights:</Text> Under Republic Act
                     No. 10173, you may request access, correction, or erasure of your account data
-                    through the Barangay Office Data Protection Officer.
+                    using the Delete Account option below or through the Barangay Office Data
+                    Protection Officer.
                   </Text>
                 </View>
               </View>
@@ -302,17 +464,46 @@ export default function ResidentProfileScreen() {
           <Card title="Session">
             <Button
               label="Sign Out"
-              variant="danger"
+              variant="outline"
               icon="logout"
               loading={signingOut}
               onPress={() => void handleSignOut()}
               fullWidth
             />
           </Card>
+
+          {/* Delete Account (RA 10173 Right to Erasure) */}
+          <Card
+            title="Delete Account"
+            subtitle="Permanently erase your DocuDash profile, requests, and uploaded IDs."
+          >
+            <View className="gap-3">
+              <Text className="text-xs leading-5 text-ink-muted">
+                Removing your account permanently deletes all personal details, submitted document
+                requests, QR pickup passes, and uploaded ID files, and releases any reserved
+                pickup slots.
+              </Text>
+              <Button
+                label="Delete My Account"
+                variant="danger"
+                icon="delete-forever"
+                onPress={() => setDeleteModalVisible(true)}
+                fullWidth
+              />
+            </View>
+          </Card>
         </View>
       </ScrollView>
 
+      <PrivacyPolicyModal visible={privacyVisible} onClose={() => setPrivacyVisible(false)} />
       <TermsModal visible={termsVisible} onClose={() => setTermsVisible(false)} />
+      <DeleteAccountModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+        onConfirmDelete={async (confirmation) => {
+          await deleteAccount(confirmation);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

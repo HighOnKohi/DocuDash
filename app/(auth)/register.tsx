@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import logoSource from '@/assets/images/logo.png';
+import { PrivacyPolicyModal } from '@/components/PrivacyPolicyModal';
 import { SelectField, type SelectOption } from '@/components/SelectField';
 import { SettingsButton } from '@/components/SettingsModal';
 import { Banner } from '@/components/StateView';
@@ -86,6 +87,7 @@ export default function RegisterScreen() {
   const [passwordHidden, setPasswordHidden] = useState(true);
   const [confirmHidden, setConfirmHidden] = useState(true);
   const [privacyConsentAccepted, setPrivacyConsentAccepted] = useState(false);
+  const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsModalVisible, setTermsModalVisible] = useState(false);
 
@@ -858,30 +860,40 @@ export default function RegisterScreen() {
                     Privacy &amp; Terms
                   </Text>
 
-                  <Pressable
-                    onPress={() => setPrivacyConsentAccepted((prev) => !prev)}
-                    disabled={submitting}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: privacyConsentAccepted }}
-                    accessibilityLabel="I consent to the processing of my personal data under RA 10173"
-                    className="flex-row items-start gap-3 rounded-2xl bg-surface-input p-4"
-                  >
-                    <MaterialIcons
-                      name={privacyConsentAccepted ? 'check-box' : 'check-box-outline-blank'}
-                      size={22}
-                      color={privacyConsentAccepted ? colors.primary : colors.inkSubtle}
-                    />
+                  <View className="flex-row items-start gap-3 rounded-2xl bg-surface-input p-4">
+                    <Pressable
+                      onPress={() => setPrivacyConsentAccepted((prev) => !prev)}
+                      disabled={submitting}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: privacyConsentAccepted }}
+                      accessibilityLabel="I consent to the processing of my personal data under RA 10173"
+                      hitSlop={6}
+                    >
+                      <MaterialIcons
+                        name={privacyConsentAccepted ? 'check-box' : 'check-box-outline-blank'}
+                        size={22}
+                        color={privacyConsentAccepted ? colors.primary : colors.inkSubtle}
+                      />
+                    </Pressable>
                     <View className="flex-1 gap-1">
                       <Text className="text-xs font-bold text-ink">
                         Data Privacy Consent (RA 10173)
                       </Text>
                       <Text className="text-xs leading-5 text-ink-muted">
                         I consent to the Barangay Office processing my details and valid IDs solely
-                        for document fulfillment. Files are stored privately and purged 30 days
-                        after completion or rejection.
+                        for document fulfillment under the{' '}
+                        <Text
+                          onPress={() => setPrivacyModalVisible(true)}
+                          accessibilityRole="link"
+                          className="font-bold text-primary underline"
+                        >
+                          Privacy Policy
+                        </Text>
+                        . Files are stored privately and purged 30 days after completion or
+                        rejection.
                       </Text>
                     </View>
-                  </Pressable>
+                  </View>
 
                   <View className="flex-row items-start gap-3 rounded-2xl bg-surface-input p-4">
                     <Pressable
@@ -951,6 +963,16 @@ export default function RegisterScreen() {
           )}
         </View>
       </ScrollView>
+
+      <PrivacyPolicyModal
+        visible={privacyModalVisible}
+        onClose={() => setPrivacyModalVisible(false)}
+        onAccept={() => {
+          setPrivacyConsentAccepted(true);
+          setPrivacyModalVisible(false);
+        }}
+        showAcceptButton
+      />
 
       <TermsModal
         visible={termsModalVisible}

@@ -1,12 +1,14 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
-import type { ComponentProps } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import logoSource from '@/assets/images/logo.png';
+import { PrivacyPolicyModal } from '@/components/PrivacyPolicyModal';
 import { SettingsButton } from '@/components/SettingsModal';
 import { Banner } from '@/components/StateView';
+import { TermsModal } from '@/components/TermsModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -27,6 +29,8 @@ export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { configError } = useAuth();
   const { colors } = useTheme();
+  const [privacyVisible, setPrivacyVisible] = useState(false);
+  const [termsVisible, setTermsVisible] = useState(false);
 
   return (
     <ScrollView
@@ -113,8 +117,32 @@ export default function WelcomeScreen() {
           <Text className="pt-2 text-center text-[11px] leading-4 text-ink-subtle">
             Protected under RA 10173 · Uploaded IDs are purged after 30 days.
           </Text>
+          <View className="flex-row items-center justify-center gap-2 pb-1">
+            <Pressable
+              onPress={() => setPrivacyVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="View Privacy Policy"
+              hitSlop={6}
+            >
+              <Text className="text-xs font-semibold text-primary underline">Privacy Policy</Text>
+            </Pressable>
+            <Text className="text-xs text-ink-subtle">·</Text>
+            <Pressable
+              onPress={() => setTermsVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="View Terms and Conditions"
+              hitSlop={6}
+            >
+              <Text className="text-xs font-semibold text-primary underline">
+                Terms &amp; Conditions
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </View>
+
+      <PrivacyPolicyModal visible={privacyVisible} onClose={() => setPrivacyVisible(false)} />
+      <TermsModal visible={termsVisible} onClose={() => setTermsVisible(false)} />
     </ScrollView>
   );
 }
