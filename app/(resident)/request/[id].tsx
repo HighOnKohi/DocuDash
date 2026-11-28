@@ -347,7 +347,7 @@ export default function RequestDetailScreen() {
           <Pressable
             onPress={() => {
               if (router.canGoBack()) router.back();
-              else router.replace('/(resident)');
+              else router.replace('/(resident)/(tabs)');
             }}
             accessibilityRole="button"
             className="flex-row items-center gap-1.5 py-1"
@@ -385,7 +385,7 @@ export default function RequestDetailScreen() {
             title="Request not found"
             description="This document request could not be found or you do not have access to it."
             actionLabel="Return to Dashboard"
-            onAction={() => router.replace('/(resident)')}
+            onAction={() => router.replace('/(resident)/(tabs)')}
           />
         ) : (
           <>

@@ -78,14 +78,15 @@ The Expo app and `api/` live at the **repository root** (`./`).
    - `CRON_SECRET` *(optional)* — Shared secret for scheduled RA 10173 retention purge jobs
 
 4. Deploy and verify:
-   - Visit `https://docu-dash-ph.vercel.app`; confirm landing page, login, registration, and staff portal load cleanly.
+   - Visit `https://docu-dash-ph.vercel.app` (or your custom domain `https://www.docudash-ph.online/`); confirm landing page, login, registration, and staff portal load cleanly.
    - Confirm `GET https://docu-dash-ph.vercel.app/api/verify-pickup` returns `405 method_not_allowed` JSON with `Cache-Control: no-store` (proving the serverless function is active and protected).
+   - **Installable PWA:** `public/manifest.json`, `public/index.html`, and `public/icons/` configure DocuDash as an installable standalone Progressive Web App with zero security warnings on Android Chrome (**Install app / Add to Home Screen**) and iOS Safari (**Share -> Add to Home Screen**).
 
 ---
 
 ## 4. Mobile Builds (Android & iOS with EAS)
 
-DocuDash uses Continuous Native Generation (CNG) — never commit manual `ios/` or `android/` folders. Because DocuDash includes `expo-camera` and `expo-document-picker`, use a local native build (`npm run android` / `npm run ios`) or an EAS build for native testing:
+DocuDash uses Continuous Native Generation (CNG) — never commit manual `ios/` or `android/` folders. Because DocuDash includes `expo-camera`, `expo-document-picker`, and `expo-notifications`, use a local native build (`npm run android` / `npm run ios`) or an EAS build for native testing:
 
 ```bash
 # Configure EAS once
@@ -103,6 +104,32 @@ npx eas-cli@latest build --platform android --profile development
 npx eas-cli@latest build --platform android --profile production
 npx eas-cli@latest build --platform ios --profile production
 ```
+
+### Local Signed Release APK (Free, No EAS/Play Store Required)
+
+`plugins/withAndroidReleaseSigning.js` automatically wires permanent release signing into `android/app/build.gradle` during `expo prebuild` without committing secrets to Git:
+
+1. **Generate a private release keystore once** (keep an offline backup of both the `.jks` file and passwords — losing them prevents future in-place APK upgrades):
+   ```powershell
+   mkdir credentials -Force
+   keytool -genkeypair -v -storetype PKCS12 -keystore credentials\docudash-release.jks -alias docudash-release -keyalg RSA -keysize 2048 -validity 10000
+   ```
+2. **Create `credentials\keystore.properties`** (already gitignored):
+   ```properties
+   DOCUDASH_UPLOAD_STORE_FILE=credentials/docudash-release.jks
+   DOCUDASH_UPLOAD_KEY_ALIAS=docudash-release
+   DOCUDASH_UPLOAD_STORE_PASSWORD=FE4R1203
+   DOCUDASH_UPLOAD_KEY_PASSWORD=FE4R1203
+   ```
+3. **Prebuild, build, and verify the signed APK locally**:
+   ```powershell
+   npx expo prebuild --platform android --no-install
+   cd android
+   .\gradlew.bat assembleRelease
+   keytool -printcert -jarfile app\build\outputs\apk\release\app-release.apk
+   ```
+   Confirm the certificate output matches your `docudash-release` key (not `Android Debug`).
+4. **Play Protect appeal (free, no Play Console required):** If Android Play Protect flags your signed sideloaded APK, submit the APK / SHA-256 fingerprint via Google's free Play Protect Appeal form (`https://support.google.com/googleplay/android-developer/contact/protectappeals`).
 
 ---
 

@@ -58,7 +58,7 @@ function RootNavigator() {
     >
       <Stack.Protected
         guard={!isAuthenticated}
-        redirectTo={isStaff ? '/(admin)' : '/(resident)'}
+        redirectTo={isStaff ? '/(admin)' : '/(resident)/(tabs)'}
       >
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
@@ -72,7 +72,7 @@ function RootNavigator() {
 
       <Stack.Protected
         guard={isAuthenticated && isStaff}
-        redirectTo={isAuthenticated ? '/(resident)' : '/(auth)'}
+        redirectTo={isAuthenticated ? '/(resident)/(tabs)' : '/(auth)'}
       >
         <Stack.Screen name="(admin)" />
       </Stack.Protected>

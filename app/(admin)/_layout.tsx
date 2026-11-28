@@ -63,7 +63,7 @@ export default function AdminLayout() {
   const [signingOut, setSigningOut] = useState(false);
 
   if (!isAuthenticated || !isStaff) {
-    return <Redirect href={isAuthenticated ? '/(resident)' : '/(auth)'} />;
+    return <Redirect href={isAuthenticated ? '/(resident)/(tabs)' : '/(auth)'} />;
   }
 
   const isDesktop = width >= DESKTOP_BREAKPOINT;
