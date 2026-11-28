@@ -437,6 +437,15 @@ export default function RegisterScreen() {
         fullName,
         address: finalAddress,
         contactNumber,
+        barangayCode: manualAddressMode ? null : (selectedBarangay?.code ?? null),
+        barangayName: manualAddressMode ? undefined : selectedBarangay?.name,
+        cityMunicipality: manualAddressMode ? undefined : selectedCity?.name,
+        province: manualAddressMode
+          ? undefined
+          : hasProvinces
+            ? selectedProvince?.name
+            : undefined,
+        region: manualAddressMode ? undefined : selectedRegion?.name,
         privacyConsentAccepted,
         termsAccepted,
       });

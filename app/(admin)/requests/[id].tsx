@@ -24,6 +24,7 @@ import {
   formatFee,
   formatSlotDate,
   formatTimeWindow,
+  getPaymentStatusLabel,
 } from '@/constants/format';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -35,12 +36,14 @@ import {
   rejectRequest,
   startReview,
   subscribeToRequest,
+  verifyRequestPayment,
 } from '@/services/requestService';
 import { getSignedAttachmentUrl, SIGNED_URL_TTL_SECONDS } from '@/services/storageService';
 import { toServiceError } from '@/services/supabase';
 import type {
   AuditLog,
   NotifyResidentPayload,
+  PaymentMethod,
   RequestAttachment,
   RequestWithDetails,
 } from '@/types/database';
@@ -84,6 +87,14 @@ export default function AdminRequestReviewScreen() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [busyAction, setBusyAction] = useState<
     'reviewing' | 'ready' | 'rejected' | 'reminder' | null
+  >(null);
+
+  // Payment verification controls
+  const [manualPaymentRef, setManualPaymentRef] = useState('');
+  const [paymentRejectMode, setPaymentRejectMode] = useState(false);
+  const [paymentRejectReason, setPaymentRejectReason] = useState('');
+  const [paymentBusy, setPaymentBusy] = useState<
+    'verify_gcash' | 'verify_cash' | 'reject_payment' | null
   >(null);
 
   // 60-second signed requirement viewer
@@ -221,6 +232,96 @@ export default function AdminRequestReviewScreen() {
       });
     } finally {
       setMintingId(null);
+    }
+  }
+
+  async function handleViewPaymentProof() {
+    if (!request?.payment_proof_path) return;
+    setMintingId('payment_proof');
+    setFeedback(null);
+    try {
+      const { signedUrl, expiresIn } = await getSignedAttachmentUrl(request.payment_proof_path, {
+        requestId: request.id,
+        logAudit: true,
+      });
+
+      const pdf = isPdfPath(request.payment_proof_path);
+      const fileName = request.payment_proof_path.split('/').pop() ?? 'GCash Receipt';
+      setSecondsLeft(expiresIn);
+      setActivePreview({
+        attachmentId: 'payment_proof',
+        label: 'GCash Payment Proof',
+        fileName,
+        isPdf: pdf,
+        signedUrl,
+        expiresAt: getExpiryTimestamp(expiresIn),
+      });
+
+      void listAuditLogs({ requestId: request.id, limit: 30 })
+        .then(setAuditLogs)
+        .catch(() => {});
+
+      if (pdf) {
+        await openExternalUrl(signedUrl);
+      }
+    } catch (error) {
+      setFeedback({
+        tone: 'error',
+        message: toServiceError(error, 'Unable to open payment proof.').message,
+      });
+    } finally {
+      setMintingId(null);
+    }
+  }
+
+  async function handlePaymentDecision(
+    decision: 'verified' | 'rejected',
+    method?: PaymentMethod
+  ) {
+    if (!request) return;
+    setFeedback(null);
+
+    if (decision === 'rejected' && paymentRejectReason.trim().length < 3) {
+      setFeedback({
+        tone: 'error',
+        message: 'Enter a clear reason for rejecting the GCash receipt.',
+      });
+      return;
+    }
+
+    const busyKey =
+      decision === 'rejected'
+        ? 'reject_payment'
+        : method === 'cash'
+          ? 'verify_cash'
+          : 'verify_gcash';
+    setPaymentBusy(busyKey);
+
+    try {
+      await verifyRequestPayment(request.id, decision, {
+        method,
+        reference: manualPaymentRef.trim() || request.payment_reference || undefined,
+        notes: decision === 'rejected' ? paymentRejectReason.trim() : undefined,
+      });
+      await refreshAll({ silent: true });
+      setPaymentRejectMode(false);
+      setPaymentRejectReason('');
+      setFeedback({
+        tone: 'success',
+        message:
+          decision === 'rejected'
+            ? 'GCash payment proof rejected. Resident can re-upload or pay Cash on pickup.'
+            : method === 'cash'
+              ? 'Manual Cash payment verified and recorded.'
+              : 'Digital GCash payment verified and recorded.',
+      });
+    } catch (error) {
+      setFeedback({
+        tone: 'error',
+        message: toServiceError(error, 'Unable to update payment status.').message,
+      });
+    } finally {
+      setPaymentBusy(null);
     }
   }
 
@@ -577,8 +678,136 @@ export default function AdminRequestReviewScreen() {
               </Card>
             </View>
 
-            {/* Right column: Workflow actions + Audit trail */}
+            {/* Right column: Payment verification + Workflow actions + Audit trail */}
             <View className="flex-1 gap-6">
+              <Card
+                title="Payment Verification"
+                subtitle="Digital GCash proof check or manual Cash counter confirmation."
+              >
+                <View className="gap-3">
+                  <View className="flex-row items-center justify-between gap-2 rounded-lg border border-border bg-surface-muted px-3.5 py-2.5">
+                    <View>
+                      <Text className="text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
+                        Amount &amp; Status
+                      </Text>
+                      <Text className="text-sm font-bold text-ink">
+                        {formatFee(request.payment_amount || (request.document_type?.fee ?? 0))} ·{' '}
+                        {getPaymentStatusLabel(
+                          request.payment_status,
+                          request.payment_method,
+                          request.payment_timing
+                        )}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {request.payment_reference ? (
+                    <Text className="text-xs text-ink-muted">
+                      Reference / OR #: <Text className="font-semibold text-ink">{request.payment_reference}</Text>
+                    </Text>
+                  ) : null}
+
+                  {request.payment_verified_at ? (
+                    <Text className="text-xs text-ink-subtle">
+                      Updated {formatDateTime(request.payment_verified_at)}
+                    </Text>
+                  ) : null}
+
+                  {request.payment_proof_path ? (
+                    <Button
+                      label="View GCash Receipt (60s)"
+                      variant="secondary"
+                      size="sm"
+                      icon="receipt-long"
+                      loading={mintingId === 'payment_proof'}
+                      onPress={() => void handleViewPaymentProof()}
+                    />
+                  ) : null}
+
+                  {!isOwnRequest &&
+                  request.status !== 'rejected' &&
+                  (request.payment_amount || (request.document_type?.fee ?? 0)) > 0 &&
+                  request.payment_status !== 'verified' &&
+                  request.payment_status !== 'waived' ? (
+                    <View className="gap-2.5 border-t border-border pt-3">
+                      <TextField
+                        label="Official Receipt / Reference # (optional)"
+                        value={manualPaymentRef}
+                        onChangeText={setManualPaymentRef}
+                        placeholder="OR # or GCash Ref"
+                        maxLength={64}
+                        editable={paymentBusy === null}
+                      />
+
+                      {request.payment_method === 'gcash' || request.payment_proof_path ? (
+                        <Button
+                          label="Verify GCash Payment"
+                          icon="verified"
+                          size="sm"
+                          loading={paymentBusy === 'verify_gcash'}
+                          disabled={paymentBusy !== null}
+                          onPress={() => void handlePaymentDecision('verified', 'gcash')}
+                          fullWidth
+                        />
+                      ) : null}
+
+                      <Button
+                        label="Mark Cash Paid (Counter)"
+                        icon="payments"
+                        variant={
+                          request.payment_method === 'gcash' ? 'outline' : 'primary'
+                        }
+                        size="sm"
+                        loading={paymentBusy === 'verify_cash'}
+                        disabled={paymentBusy !== null}
+                        onPress={() => void handlePaymentDecision('verified', 'cash')}
+                        fullWidth
+                      />
+
+                      {request.payment_proof_path || request.payment_status === 'submitted' ? (
+                        paymentRejectMode ? (
+                          <View className="gap-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/50">
+                            <TextField
+                              label="Rejection reason"
+                              value={paymentRejectReason}
+                              onChangeText={setPaymentRejectReason}
+                              placeholder="e.g. Receipt screenshot is unreadable or wrong amount."
+                              maxLength={300}
+                              editable={paymentBusy === null}
+                            />
+                            <View className="flex-row gap-2">
+                              <Button
+                                label="Confirm Reject Proof"
+                                variant="danger"
+                                size="sm"
+                                loading={paymentBusy === 'reject_payment'}
+                                disabled={paymentBusy !== null}
+                                onPress={() => void handlePaymentDecision('rejected')}
+                              />
+                              <Button
+                                label="Cancel"
+                                variant="outline"
+                                size="sm"
+                                onPress={() => setPaymentRejectMode(false)}
+                              />
+                            </View>
+                          </View>
+                        ) : (
+                          <Button
+                            label="Reject GCash Proof"
+                            variant="danger"
+                            size="sm"
+                            disabled={paymentBusy !== null}
+                            onPress={() => setPaymentRejectMode(true)}
+                            fullWidth
+                          />
+                        )
+                      ) : null}
+                    </View>
+                  ) : null}
+                </View>
+              </Card>
+
               <Card
                 title="Workflow Decision"
                 subtitle="Transitions are enforced by Postgres RLS and triggers."

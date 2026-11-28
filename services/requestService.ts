@@ -5,6 +5,8 @@ import type {
   DocumentType,
   NotifyResidentPayload,
   NotifyResidentResponse,
+  PaymentMethod,
+  PaymentTiming,
   RequestStatus,
   RequestWithDetails,
   VerifyPickupResponse,
@@ -21,6 +23,8 @@ import {
 export interface CreateRequestInput {
   documentTypeId: string;
   purpose: string;
+  paymentMethod?: PaymentMethod;
+  paymentTiming?: PaymentTiming;
 }
 
 export interface ListAllRequestsFilters {
@@ -38,6 +42,7 @@ const REQUEST_DETAILS_SELECT = `
   pickup_slot:pickup_slots!requests_pickup_slot_id_fkey(id, slot_date, time_window, max_capacity, booked_count),
   resident:profiles!requests_resident_id_fkey(id, full_name, address, contact_number),
   reviewer:profiles!requests_reviewed_by_fkey(id, full_name),
+  barangay:barangays!requests_barangay_id_fkey(*),
   attachments:request_attachments(id, request_id, storage_path, doc_type, uploaded_at)
 `;
 
@@ -76,12 +81,18 @@ export async function createRequest(input: CreateRequestInput): Promise<Document
   const residentId = await requireAuthenticatedUserId();
   const supabase = getSupabaseClient();
 
+  const paymentMethod: PaymentMethod = input.paymentMethod ?? 'cash';
+  const paymentTiming: PaymentTiming =
+    paymentMethod === 'cash' ? 'pay_on_pickup' : (input.paymentTiming ?? 'pay_now');
+
   const { data, error } = await supabase
     .from('requests')
     .insert({
       resident_id: residentId,
       document_type_id: input.documentTypeId,
       purpose,
+      payment_method: paymentMethod,
+      payment_timing: paymentTiming,
     })
     .select('*')
     .single();
@@ -237,6 +248,81 @@ export function rejectRequest(
   rejectionReason: string
 ): Promise<DocumentRequest> {
   return updateRequestStatus(requestId, 'rejected', { rejectionReason });
+}
+
+/** Switches a resident's payment choice between GCash (Pay Now / Pickup) and Cash (on Pickup). */
+export async function setRequestPaymentOption(
+  requestId: string,
+  method: PaymentMethod,
+  timing: PaymentTiming
+): Promise<DocumentRequest> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('set_request_payment_option', {
+    p_request_id: requestId,
+    p_method: method,
+    p_timing: method === 'cash' ? 'pay_on_pickup' : timing,
+  });
+
+  if (error || !data) {
+    throw toServiceError(error, 'Unable to update payment option.');
+  }
+
+  return data;
+}
+
+/** Submits a GCash reference number and private receipt proof for staff verification. */
+export async function submitGcashPayment(
+  requestId: string,
+  referenceNumber: string,
+  proofPath: string
+): Promise<DocumentRequest> {
+  const trimmedRef = referenceNumber.trim();
+  if (trimmedRef.length < 6 || trimmedRef.length > 64) {
+    throw new ServiceError('Please enter a valid GCash reference number (6–64 characters).', {
+      code: 'invalid_payment_reference',
+    });
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('submit_gcash_payment', {
+    p_request_id: requestId,
+    p_reference_number: trimmedRef,
+    p_proof_path: proofPath,
+  });
+
+  if (error || !data) {
+    throw toServiceError(error, 'Unable to submit GCash payment proof.');
+  }
+
+  return data;
+}
+
+/** Staff/admin manual Cash or digital GCash payment verification. */
+export async function verifyRequestPayment(
+  requestId: string,
+  decision: 'verified' | 'rejected',
+  options: { method?: PaymentMethod; reference?: string; notes?: string } = {}
+): Promise<DocumentRequest> {
+  if (decision === 'rejected' && (!options.notes || options.notes.trim().length < 3)) {
+    throw new ServiceError('Please enter a reason for rejecting this payment proof.', {
+      code: 'payment_rejection_reason_required',
+    });
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('verify_request_payment', {
+    p_request_id: requestId,
+    p_decision: decision,
+    p_method: options.method ?? null,
+    p_reference: options.reference?.trim() || null,
+    p_notes: options.notes?.trim() || null,
+  });
+
+  if (error || !data) {
+    throw toServiceError(error, 'Unable to update payment verification status.');
+  }
+
+  return data;
 }
 
 /**

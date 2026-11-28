@@ -18,7 +18,7 @@ interface NavItem {
   label: string;
   shortLabel: string;
   icon: MaterialIconName;
-  href: '/(admin)' | '/(admin)/schedules' | '/(admin)/scanner';
+  href: '/(admin)' | '/(admin)/schedules' | '/(admin)/scanner' | '/(admin)/barangay';
   isActive: (pathname: string) => boolean;
 }
 
@@ -44,6 +44,13 @@ const NAV_ITEMS: NavItem[] = [
     icon: 'qr-code-scanner',
     href: '/(admin)/scanner',
     isActive: (pathname) => pathname.startsWith('/scanner'),
+  },
+  {
+    label: 'Barangay Office',
+    shortLabel: 'Office',
+    icon: 'account-balance',
+    href: '/(admin)/barangay',
+    isActive: (pathname) => pathname.startsWith('/barangay'),
   },
 ];
 

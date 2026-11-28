@@ -1,4 +1,9 @@
-import type { RequestStatus } from '@/types/database';
+import type {
+  PaymentMethod,
+  PaymentStatus,
+  PaymentTiming,
+  RequestStatus,
+} from '@/types/database';
 
 /** Formats a numeric fee in Philippine Pesos (returns "Free" for zero fees). */
 export function formatFee(fee: number): string {
@@ -119,8 +124,39 @@ export function formatAuditAction(action: string): string {
       return 'Expired requirements purged (RA 10173)';
     case 'notification_dispatched':
       return 'Resident notification dispatched';
+    case 'payment_submitted':
+      return 'GCash payment proof submitted';
+    case 'payment_verified':
+      return 'Payment verified';
+    case 'payment_rejected':
+      return 'Payment proof rejected';
+    case 'barangay_updated':
+      return 'Barangay office details updated';
     default:
       return action.replace(/_/g, ' ');
+  }
+}
+
+/** Returns a concise human-readable payment status label. */
+export function getPaymentStatusLabel(
+  status: PaymentStatus,
+  method: PaymentMethod,
+  timing: PaymentTiming
+): string {
+  switch (status) {
+    case 'waived':
+      return 'Free';
+    case 'verified':
+      return method === 'gcash' ? 'Paid (GCash)' : 'Paid (Cash)';
+    case 'submitted':
+      return 'GCash Checking';
+    case 'rejected':
+      return 'Proof Rejected';
+    case 'unpaid':
+      if (method === 'gcash' && timing === 'pay_now') {
+        return 'GCash Pending';
+      }
+      return method === 'gcash' ? 'GCash on Pickup' : 'Cash on Pickup';
   }
 }
 

@@ -6,6 +6,7 @@ import {
   formatFee,
   formatSlotDate,
   formatTimeWindow,
+  getPaymentStatusLabel,
 } from '@/constants/format';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { RequestWithDetails } from '@/types/database';
@@ -20,7 +21,16 @@ export interface RequestCardProps {
 export function RequestCard({ request, onPress }: RequestCardProps) {
   const { colors } = useTheme();
   const documentName = request.document_type?.name ?? 'Barangay Document';
-  const feeLabel = formatFee(request.document_type?.fee ?? 0);
+  const feeAmount = request.payment_amount || (request.document_type?.fee ?? 0);
+  const feeLabel = formatFee(feeAmount);
+  const paymentLabel =
+    feeAmount > 0
+      ? getPaymentStatusLabel(
+          request.payment_status,
+          request.payment_method,
+          request.payment_timing
+        )
+      : 'Free';
   const slot = request.pickup_slot;
 
   return (
@@ -35,7 +45,8 @@ export function RequestCard({ request, onPress }: RequestCardProps) {
         <View className="flex-1 gap-1">
           <Text className="text-base font-bold text-ink">{documentName}</Text>
           <Text className="text-xs font-medium text-ink-subtle">
-            Fee: {feeLabel} · Submitted {formatDateTime(request.created_at)}
+            {feeAmount > 0 ? `${feeLabel} · ${paymentLabel}` : feeLabel} · Submitted{' '}
+            {formatDateTime(request.created_at)}
           </Text>
         </View>
         <StatusBadge status={request.status} />

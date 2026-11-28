@@ -19,6 +19,7 @@ import {
   formatFee,
   formatSlotDate,
   formatTimeWindow,
+  getPaymentStatusLabel,
 } from '@/constants/format';
 import { useTheme } from '@/contexts/ThemeContext';
 import { listAllRequests, subscribeToAllRequests } from '@/services/requestService';
@@ -410,8 +411,35 @@ export default function AdminDashboardScreen() {
                           </Text>
                           <StatusBadge status={req.status} />
                           <Text className="text-xs font-semibold text-primary">
-                            {formatFee(req.document_type?.fee ?? 0)}
+                            {formatFee(req.payment_amount || (req.document_type?.fee ?? 0))}
                           </Text>
+                          {(req.payment_amount || (req.document_type?.fee ?? 0)) > 0 ? (
+                            <View
+                              className={`rounded-full px-2 py-0.5 ${
+                                req.payment_status === 'verified'
+                                  ? 'bg-emerald-100 dark:bg-emerald-950'
+                                  : req.payment_status === 'submitted'
+                                    ? 'bg-amber-100 dark:bg-amber-950'
+                                    : 'bg-surface'
+                              }`}
+                            >
+                              <Text
+                                className={`text-[11px] font-bold ${
+                                  req.payment_status === 'verified'
+                                    ? 'text-emerald-800 dark:text-emerald-300'
+                                    : req.payment_status === 'submitted'
+                                      ? 'text-amber-800 dark:text-amber-300'
+                                      : 'text-ink-muted'
+                                }`}
+                              >
+                                {getPaymentStatusLabel(
+                                  req.payment_status,
+                                  req.payment_method,
+                                  req.payment_timing
+                                )}
+                              </Text>
+                            </View>
+                          ) : null}
                         </View>
 
                         <Text className="text-sm font-medium text-ink">

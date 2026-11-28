@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useState, type ComponentProps } from 'react';
+import { useEffect, useState, type ComponentProps } from 'react';
 import {
   KeyboardAvoidingView,
   Linking,
@@ -15,6 +15,10 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
 import { PermissionsPromptModal } from '@/components/PermissionsPromptModal';
+import {
+  PhilippineBarangayPicker,
+  type SelectedBarangayLocation,
+} from '@/components/PhilippineBarangayPicker';
 import { PrivacyPolicyModal } from '@/components/PrivacyPolicyModal';
 import { Banner } from '@/components/StateView';
 import { TermsModal } from '@/components/TermsModal';
@@ -24,8 +28,14 @@ import type { ThemePreference } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import {
+  assignMyBarangay,
+  getBarangayById,
+  openBarangayHallInMaps,
+} from '@/services/barangayService';
 import { getPermissionEnableSteps } from '@/services/permissionService';
 import { toServiceError } from '@/services/supabase';
+import type { Barangay } from '@/types/database';
 
 type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -37,7 +47,7 @@ const THEME_OPTIONS: { value: ThemePreference; label: string; icon: MaterialIcon
 
 export default function ResidentProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, profile, updateProfile, signOut, deleteAccount } = useAuth();
+  const { user, profile, updateProfile, refreshProfile, signOut, deleteAccount } = useAuth();
   const {
     isSupported: notificationsSupported,
     permissionStatus,
@@ -66,6 +76,69 @@ export default function ResidentProfileScreen() {
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(
     null
   );
+
+  const [assignedBarangay, setAssignedBarangay] = useState<Barangay | null>(null);
+  const [editingBarangay, setEditingBarangay] = useState(false);
+  const [pickedLocation, setPickedLocation] = useState<SelectedBarangayLocation>({
+    region: null,
+    province: null,
+    city: null,
+    barangay: null,
+  });
+  const [savingBarangay, setSavingBarangay] = useState(false);
+  const [barangayNotice, setBarangayNotice] = useState<{
+    tone: 'success' | 'error';
+    message: string;
+  } | null>(null);
+
+  const profileBarangayId = profile?.barangay_id ?? null;
+  useEffect(() => {
+    if (!profileBarangayId) return;
+    let active = true;
+    void getBarangayById(profileBarangayId)
+      .then((row) => {
+        if (active) setAssignedBarangay(row);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [profileBarangayId]);
+
+  async function handleAssignBarangay() {
+    setBarangayNotice(null);
+    if (!pickedLocation.barangay || !pickedLocation.city) {
+      setBarangayNotice({
+        tone: 'error',
+        message: 'Please select a Region, City/Municipality, and Barangay.',
+      });
+      return;
+    }
+
+    setSavingBarangay(true);
+    try {
+      await assignMyBarangay({
+        barangayCode: pickedLocation.barangay.code,
+        barangayName: pickedLocation.barangay.name,
+        cityMunicipality: pickedLocation.city.name,
+        province: pickedLocation.province?.name ?? '',
+        region: pickedLocation.region?.name ?? '',
+      });
+      await refreshProfile();
+      setEditingBarangay(false);
+      setBarangayNotice({
+        tone: 'success',
+        message: `Assigned to ${pickedLocation.barangay.name}, ${pickedLocation.city.name}.`,
+      });
+    } catch (error) {
+      setBarangayNotice({
+        tone: 'error',
+        message: toServiceError(error, 'Unable to update your assigned barangay.').message,
+      });
+    } finally {
+      setSavingBarangay(false);
+    }
+  }
 
   const notificationsActive =
     notificationsSupported && notificationsEnabled && permissionStatus === 'granted';
@@ -202,6 +275,93 @@ export default function ResidentProfileScreen() {
           </Card>
 
           {feedback ? <Banner tone={feedback.tone} message={feedback.message} /> : null}
+
+          {/* Assigned Barangay & Hall Google Maps Locator */}
+          <Card
+            title="Assigned Barangay & Hall Location"
+            subtitle="Automatically matched from your registration address."
+          >
+            <View className="gap-3">
+              {barangayNotice ? (
+                <Banner tone={barangayNotice.tone} message={barangayNotice.message} />
+              ) : null}
+
+              {assignedBarangay || profile?.barangay_name ? (
+                <View className="gap-1 rounded-xl border border-border bg-surface-muted p-3.5">
+                  <Text className="text-sm font-bold text-ink">
+                    {assignedBarangay?.name ?? profile?.barangay_name}
+                  </Text>
+                  <Text className="text-xs text-ink-muted">
+                    {[
+                      assignedBarangay?.city_municipality ?? profile?.city_municipality,
+                      assignedBarangay?.province ?? profile?.province,
+                      assignedBarangay?.region ?? profile?.region,
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
+                  </Text>
+                  {assignedBarangay?.hall_address ? (
+                    <Text className="pt-1 text-xs text-ink-subtle">
+                      Hall: {assignedBarangay.hall_address}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : (
+                <Text className="text-xs text-ink-muted">
+                  No barangay assigned yet. Select your Philippine barangay below.
+                </Text>
+              )}
+
+              <View className="flex-row flex-wrap gap-2.5">
+                {assignedBarangay || profile?.barangay_name ? (
+                  <Button
+                    label="Locate Barangay Hall in Google Maps"
+                    variant="outline"
+                    size="sm"
+                    icon="map"
+                    onPress={() =>
+                      void openBarangayHallInMaps(
+                        assignedBarangay ?? {
+                          name: profile?.barangay_name,
+                          city_municipality: profile?.city_municipality,
+                          province: profile?.province,
+                        }
+                      )
+                    }
+                  />
+                ) : null}
+                <Button
+                  label={
+                    editingBarangay
+                      ? 'Cancel'
+                      : assignedBarangay || profile?.barangay_name
+                        ? 'Change Barangay'
+                        : 'Select Barangay'
+                  }
+                  variant="outline"
+                  size="sm"
+                  icon="location-city"
+                  onPress={() => setEditingBarangay((prev) => !prev)}
+                />
+              </View>
+
+              {editingBarangay ? (
+                <View className="gap-3 border-t border-border pt-3">
+                  <PhilippineBarangayPicker
+                    disabled={savingBarangay}
+                    onChange={setPickedLocation}
+                  />
+                  <Button
+                    label="Save Assigned Barangay"
+                    icon="save"
+                    size="sm"
+                    loading={savingBarangay}
+                    onPress={() => void handleAssignBarangay()}
+                  />
+                </View>
+              ) : null}
+            </View>
+          </Card>
 
           {/* Contact details form */}
           <Card

@@ -2,7 +2,16 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
@@ -10,8 +19,14 @@ import { Card } from '@/components/Card';
 import { Banner, LoadingState } from '@/components/StateView';
 import { TextField } from '@/components/TextField';
 import { formatFee, formatSlotDate, formatTimeWindow } from '@/constants/format';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { createRequest, listDocumentTypes } from '@/services/requestService';
+import { getBarangayById, getBarangayGcashQrUrl } from '@/services/barangayService';
+import {
+  createRequest,
+  listDocumentTypes,
+  submitGcashPayment,
+} from '@/services/requestService';
 import {
   bookPickupSlot,
   listPickupSlots,
@@ -20,11 +35,18 @@ import {
 import {
   ALLOWED_ATTACHMENT_MIME_TYPES,
   MAX_ATTACHMENT_BYTES,
+  uploadPaymentProofFile,
   uploadRequirementAttachment,
   type UploadableFileBody,
 } from '@/services/storageService';
 import { ServiceError, toServiceError } from '@/services/supabase';
-import type { DocumentType, PickupSlot } from '@/types/database';
+import type {
+  Barangay,
+  DocumentType,
+  PaymentMethod,
+  PaymentTiming,
+  PickupSlot,
+} from '@/types/database';
 
 interface SelectedUpload {
   docType: string;
@@ -68,8 +90,11 @@ async function readUploadBody(item: SelectedUpload): Promise<UploadableFileBody>
 
 export default function NewRequestScreen() {
   const insets = useSafeAreaInsets();
+  const { profile } = useAuth();
   const { colors } = useTheme();
+  const barangayId = profile?.barangay_id ?? null;
 
+  const [barangay, setBarangay] = useState<Barangay | null>(null);
   const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
   const [slots, setSlots] = useState<PickupSlot[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -79,6 +104,11 @@ export default function NewRequestScreen() {
   const [purpose, setPurpose] = useState('');
   const [uploads, setUploads] = useState<Record<string, SelectedUpload>>({});
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [paymentTiming, setPaymentTiming] = useState<PaymentTiming>('pay_on_pickup');
+  const [gcashRef, setGcashRef] = useState('');
+  const [paymentProof, setPaymentProof] = useState<SelectedUpload | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitProgress, setSubmitProgress] = useState<string | null>(null);
@@ -131,6 +161,19 @@ export default function NewRequestScreen() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!barangayId) return;
+    let active = true;
+    void getBarangayById(barangayId)
+      .then((row) => {
+        if (active) setBarangay(row);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [barangayId]);
 
   useEffect(() => {
     const unsubscribe = subscribeToPickupSlots(() => {
@@ -224,6 +267,44 @@ export default function NewRequestScreen() {
     });
   }
 
+  async function handlePickPaymentProof() {
+    setFormError(null);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [...ALLOWED_ATTACHMENT_MIME_TYPES],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      if (!asset) return;
+
+      const mimeType = inferMimeType(asset);
+      if (!(ALLOWED_ATTACHMENT_MIME_TYPES as readonly string[]).includes(mimeType)) {
+        setFormError('Only JPEG, PNG, WebP images and PDF files are accepted.');
+        return;
+      }
+
+      const sizeBytes = asset.size ?? asset.file?.size ?? 0;
+      if (sizeBytes > MAX_ATTACHMENT_BYTES) {
+        setFormError('Selected receipt exceeds the 5 MB upload limit.');
+        return;
+      }
+
+      setPaymentProof({
+        docType: 'payment_proof',
+        fileName: asset.name,
+        contentType: mimeType,
+        sizeBytes,
+        uri: asset.uri,
+        webFile: asset.file,
+      });
+    } catch (error) {
+      setFormError(toServiceError(error, 'Unable to select receipt file.').message);
+    }
+  }
+
   async function handleSubmit() {
     setFormError(null);
 
@@ -247,6 +328,20 @@ export default function NewRequestScreen() {
       return;
     }
 
+    const isPayingGcashNow =
+      selectedDocType.fee > 0 && paymentMethod === 'gcash' && paymentTiming === 'pay_now';
+    const hasPartialGcashInput = isPayingGcashNow && (Boolean(paymentProof) || gcashRef.trim().length > 0);
+    if (hasPartialGcashInput) {
+      if (gcashRef.trim().length < 6) {
+        setFormError('Enter a valid GCash reference number (at least 6 characters) or clear the receipt to pay later.');
+        return;
+      }
+      if (!paymentProof) {
+        setFormError('Please attach your GCash receipt screenshot or clear the reference number to pay later.');
+        return;
+      }
+    }
+
     setSubmitting(true);
     let createdId: string | null = null;
 
@@ -255,6 +350,9 @@ export default function NewRequestScreen() {
       const created = await createRequest({
         documentTypeId: selectedDocType.id,
         purpose: trimmedPurpose,
+        paymentMethod: selectedDocType.fee > 0 ? paymentMethod : 'cash',
+        paymentTiming:
+          selectedDocType.fee > 0 && paymentMethod === 'gcash' ? paymentTiming : 'pay_on_pickup',
       });
       createdId = created.id;
 
@@ -280,10 +378,24 @@ export default function NewRequestScreen() {
         await bookPickupSlot(created.id, selectedSlotId);
       }
 
+      if (isPayingGcashNow && paymentProof && gcashRef.trim().length >= 6) {
+        setSubmitProgress('Submitting GCash payment proof...');
+        const proofBody = await readUploadBody(paymentProof);
+        const proofPath = await uploadPaymentProofFile({
+          requestId: created.id,
+          file: proofBody,
+          fileName: paymentProof.fileName,
+          contentType: paymentProof.contentType,
+        });
+        await submitGcashPayment(created.id, gcashRef.trim(), proofPath);
+      }
+
       // Reset form and open the new request tracker.
       setPurpose('');
       setUploads({});
       setSelectedSlotId(null);
+      setGcashRef('');
+      setPaymentProof(null);
       router.push({
         pathname: '/(resident)/request/[id]',
         params: { id: created.id },
@@ -514,9 +626,168 @@ export default function NewRequestScreen() {
                 </Card>
               ) : null}
 
-              {/* Step 4: Pickup Slot */}
+              {/* Step 4: Payment Option (GCash / Cash Only) */}
+              {selectedDocType ? (
+                <Card
+                  title="4. Payment Option (GCash / Cash)"
+                  subtitle={
+                    selectedDocType.fee > 0
+                      ? `Fee: ${formatFee(selectedDocType.fee)} — choose to pay now via GCash or pay Cash when claiming.`
+                      : 'This document is free of charge.'
+                  }
+                >
+                  {selectedDocType.fee <= 0 ? (
+                    <Banner
+                      tone="success"
+                      message="No fee is required for this certificate (Free)."
+                    />
+                  ) : (
+                    <View className="gap-3">
+                      <Pressable
+                        onPress={() => {
+                          setPaymentMethod('cash');
+                          setPaymentTiming('pay_on_pickup');
+                        }}
+                        disabled={submitting}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: paymentMethod === 'cash' }}
+                        className={`flex-row items-start gap-3 rounded-xl border p-3.5 ${
+                          paymentMethod === 'cash'
+                            ? 'border-primary bg-primary-50'
+                            : 'border-border bg-surface'
+                        }`}
+                      >
+                        <MaterialIcons
+                          name={
+                            paymentMethod === 'cash'
+                              ? 'radio-button-checked'
+                              : 'radio-button-unchecked'
+                          }
+                          size={20}
+                          color={paymentMethod === 'cash' ? colors.primary : colors.inkSubtle}
+                        />
+                        <View className="flex-1">
+                          <Text className="text-sm font-bold text-ink">
+                            Pay When Claiming (Cash at Counter)
+                          </Text>
+                          <Text className="text-xs text-ink-muted">
+                            Settle {formatFee(selectedDocType.fee)} in cash at the Barangay Hall
+                            upon pickup. Staff will verify payment manually at the counter.
+                          </Text>
+                        </View>
+                      </Pressable>
+
+                      <Pressable
+                        onPress={() => {
+                          setPaymentMethod('gcash');
+                          setPaymentTiming('pay_now');
+                        }}
+                        disabled={submitting}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: paymentMethod === 'gcash' }}
+                        className={`flex-row items-start gap-3 rounded-xl border p-3.5 ${
+                          paymentMethod === 'gcash'
+                            ? 'border-primary bg-primary-50'
+                            : 'border-border bg-surface'
+                        }`}
+                      >
+                        <MaterialIcons
+                          name={
+                            paymentMethod === 'gcash'
+                              ? 'radio-button-checked'
+                              : 'radio-button-unchecked'
+                          }
+                          size={20}
+                          color={paymentMethod === 'gcash' ? colors.primary : colors.inkSubtle}
+                        />
+                        <View className="flex-1">
+                          <Text className="text-sm font-bold text-ink">Pay Now (GCash QR)</Text>
+                          <Text className="text-xs text-ink-muted">
+                            Scan your barangay&apos;s GCash QR code and upload your payment receipt
+                            now (or pay later from the Request Tracker).
+                          </Text>
+                        </View>
+                      </Pressable>
+
+                      {paymentMethod === 'gcash' ? (
+                        <View className="gap-3 rounded-xl border border-border bg-surface-muted p-4">
+                          {getBarangayGcashQrUrl(barangay?.gcash_qr_storage_path) ? (
+                            <View className="items-center gap-2">
+                              <Image
+                                source={{
+                                  uri: getBarangayGcashQrUrl(barangay?.gcash_qr_storage_path) ?? '',
+                                }}
+                                resizeMode="contain"
+                                style={{
+                                  width: 210,
+                                  height: 210,
+                                  borderRadius: 12,
+                                  backgroundColor: '#FFFFFF',
+                                }}
+                                accessibilityLabel="Barangay GCash QR Code"
+                              />
+                              {barangay?.gcash_account_name || barangay?.gcash_account_number ? (
+                                <Text className="text-center text-xs font-semibold text-ink">
+                                  {[barangay?.gcash_account_name, barangay?.gcash_account_number]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </Text>
+                              ) : null}
+                            </View>
+                          ) : (
+                            <Banner
+                              tone="info"
+                              message="Your barangay office has not uploaded a GCash QR image yet. You can still submit this request now and upload GCash proof later or pay Cash upon claiming."
+                            />
+                          )}
+
+                          <View className="rounded-xl border border-border bg-surface px-3.5 py-2.5">
+                            <Text className="text-xs font-semibold text-primary">
+                              GCash Reference Number (optional now)
+                            </Text>
+                            <TextInput
+                              value={gcashRef}
+                              onChangeText={setGcashRef}
+                              placeholder="Enter 13-digit GCash reference no."
+                              placeholderTextColor={colors.inkSubtle}
+                              maxLength={64}
+                              editable={!submitting}
+                              className="mt-1 min-h-[26px] p-0 text-sm font-medium text-ink"
+                            />
+                          </View>
+
+                          {paymentProof ? (
+                            <View className="flex-row items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-800 dark:bg-emerald-950/50">
+                              <Text
+                                className="flex-1 text-xs font-semibold text-emerald-900 dark:text-emerald-200"
+                                numberOfLines={1}
+                              >
+                                Receipt: {paymentProof.fileName}
+                              </Text>
+                              <Pressable onPress={() => setPaymentProof(null)} hitSlop={8}>
+                                <MaterialIcons name="close" size={18} color={colors.inkSubtle} />
+                              </Pressable>
+                            </View>
+                          ) : (
+                            <Button
+                              label="Upload GCash Receipt (Optional Now)"
+                              icon="upload-file"
+                              variant="outline"
+                              size="sm"
+                              disabled={submitting}
+                              onPress={() => void handlePickPaymentProof()}
+                            />
+                          )}
+                        </View>
+                      ) : null}
+                    </View>
+                  )}
+                </Card>
+              ) : null}
+
+              {/* Step 5: Pickup Slot */}
               <Card
-                title="4. Book Pickup Slot"
+                title="5. Book Pickup Slot"
                 subtitle="Reserve a counter window now (you can also re-book later before pickup)."
               >
                 {slotsByDate.length === 0 ? (
@@ -582,8 +853,11 @@ export default function NewRequestScreen() {
                 />
                 {selectedDocType && selectedDocType.fee > 0 ? (
                   <Text className="text-center text-xs text-ink-subtle">
-                    Document fee ({formatFee(selectedDocType.fee)}) is paid at the barangay counter
-                    upon pickup.
+                    Document fee: {formatFee(selectedDocType.fee)} (
+                    {paymentMethod === 'gcash'
+                      ? 'GCash digital verification'
+                      : 'Cash upon counter pickup'}
+                    ).
                   </Text>
                 ) : null}
               </View>

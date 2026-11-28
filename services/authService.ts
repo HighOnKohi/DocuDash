@@ -17,6 +17,12 @@ export interface RegisterInput {
   fullName: string;
   address: string;
   contactNumber: string;
+  /** Structured PSGC barangay fields for automatic barangay assignment. */
+  barangayCode?: string | null;
+  barangayName?: string;
+  cityMunicipality?: string;
+  province?: string;
+  region?: string;
   /** Explicit Data Privacy Act (RA 10173) consent checkbox value. Must be `true`. */
   privacyConsentAccepted: boolean;
   /** Explicit Terms & Conditions acceptance checkbox value. Must be `true`. */
@@ -110,6 +116,11 @@ export async function register(input: RegisterInput): Promise<RegisterResult> {
         full_name: fullName,
         address,
         contact_number: contactNumber,
+        barangay_code: input.barangayCode?.trim() || null,
+        barangay_name: input.barangayName?.trim() || null,
+        city_municipality: input.cityMunicipality?.trim() || null,
+        province: input.province?.trim() || null,
+        region: input.region?.trim() || null,
         privacy_consent_at: nowIso,
         terms_accepted_at: nowIso,
       },

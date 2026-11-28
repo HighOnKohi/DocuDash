@@ -114,6 +114,18 @@ export default function WelcomeScreen() {
             <Text className="text-base font-semibold text-ink">Create Resident Account</Text>
           </Pressable>
 
+          <Pressable
+            onPress={() => router.push('/(auth)/barangay-admin-request')}
+            accessibilityRole="button"
+            accessibilityLabel="Request Barangay Admin Access"
+            hitSlop={6}
+            className="py-1"
+          >
+            <Text className="text-center text-xs font-semibold text-primary">
+              Barangay Official? Request Admin Access
+            </Text>
+          </Pressable>
+
           <Text className="pt-2 text-center text-[11px] leading-4 text-ink-subtle">
             Protected under RA 10173 · Uploaded IDs are purged after 30 days.
           </Text>

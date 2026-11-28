@@ -11,9 +11,10 @@ import { SettingsButton } from '@/components/SettingsModal';
 import { Banner, EmptyState, LoadingState } from '@/components/StateView';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { getBarangayById, openBarangayHallInMaps } from '@/services/barangayService';
 import { listResidentRequests, subscribeToResidentRequests } from '@/services/requestService';
 import { toServiceError } from '@/services/supabase';
-import type { RequestWithDetails } from '@/types/database';
+import type { Barangay, RequestWithDetails } from '@/types/database';
 
 type FilterKey = 'all' | 'active' | 'ready' | 'past';
 
@@ -31,6 +32,7 @@ export default function ResidentDashboardScreen() {
   const userId = user?.id ?? null;
 
   const [requests, setRequests] = useState<RequestWithDetails[]>([]);
+  const [barangay, setBarangay] = useState<Barangay | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -68,6 +70,20 @@ export default function ResidentDashboardScreen() {
     });
     return unsubscribe;
   }, [userId, loadRequests]);
+
+  const barangayId = profile?.barangay_id ?? null;
+  useEffect(() => {
+    if (!barangayId) return;
+    let active = true;
+    void getBarangayById(barangayId)
+      .then((row) => {
+        if (active) setBarangay(row);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [barangayId]);
 
   const counts = useMemo(() => {
     let active = 0;
@@ -139,6 +155,58 @@ export default function ResidentDashboardScreen() {
             />
           </View>
         </View>
+
+        {/* Assigned Barangay & Hall Locator */}
+        {barangay || profile?.barangay_name ? (
+          <View className="flex-row items-center justify-between gap-3 rounded-card border border-border bg-surface p-4">
+            <View className="flex-1 flex-row items-center gap-3">
+              <View className="h-10 w-10 items-center justify-center rounded-lg bg-primary-50">
+                <MaterialIcons name="location-city" size={20} color={colors.primary} />
+              </View>
+              <View className="flex-1">
+                <Text className="text-xs font-semibold uppercase tracking-wider text-ink-subtle">
+                  Your Barangay
+                </Text>
+                <Text className="text-sm font-bold text-ink" numberOfLines={1}>
+                  {barangay?.name ?? profile?.barangay_name}
+                  {barangay?.city_municipality || profile?.city_municipality
+                    ? `, ${barangay?.city_municipality ?? profile?.city_municipality}`
+                    : ''}
+                </Text>
+              </View>
+            </View>
+            <Button
+              label="Locate Hall"
+              size="sm"
+              variant="outline"
+              icon="map"
+              onPress={() =>
+                void openBarangayHallInMaps(
+                  barangay ?? {
+                    name: profile?.barangay_name,
+                    city_municipality: profile?.city_municipality,
+                    province: profile?.province,
+                  }
+                )
+              }
+            />
+          </View>
+        ) : (
+          <View className="flex-row items-center justify-between gap-3 rounded-card border border-border bg-surface p-4">
+            <View className="flex-1">
+              <Text className="text-sm font-bold text-ink">No barangay assigned yet</Text>
+              <Text className="text-xs text-ink-muted">
+                Set your Philippine barangay in Profile to view hall directions &amp; GCash QR.
+              </Text>
+            </View>
+            <Button
+              label="Set Barangay"
+              size="sm"
+              variant="outline"
+              onPress={() => router.push('/(resident)/(tabs)/profile')}
+            />
+          </View>
+        )}
 
         {/* Ready-for-pickup highlight banner */}
         {readyRequest ? (

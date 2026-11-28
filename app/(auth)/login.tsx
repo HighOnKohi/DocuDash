@@ -258,6 +258,18 @@ export default function LoginScreen() {
                 <Text className="text-base font-bold text-white">Sign In</Text>
               )}
             </Pressable>
+
+            <Pressable
+              onPress={() => router.push('/(auth)/barangay-admin-request')}
+              accessibilityRole="button"
+              accessibilityLabel="Request Barangay Admin Access"
+              hitSlop={6}
+              className="py-1"
+            >
+              <Text className="text-center text-xs font-semibold text-primary">
+                Barangay Official? Request Admin Access
+              </Text>
+            </Pressable>
           </View>
         </View>
       </ScrollView>

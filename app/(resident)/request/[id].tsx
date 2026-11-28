@@ -4,12 +4,15 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Image,
   Linking,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,12 +28,16 @@ import {
   formatFee,
   formatSlotDate,
   formatTimeWindow,
+  getPaymentStatusLabel,
   getStatusDescription,
 } from '@/constants/format';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { getBarangayGcashQrUrl, openBarangayHallInMaps } from '@/services/barangayService';
 import {
   getRequestById,
+  setRequestPaymentOption,
+  submitGcashPayment,
   subscribeToRequest,
   updateRequestPurpose,
 } from '@/services/requestService';
@@ -40,6 +47,7 @@ import {
   deleteRequirementAttachment,
   getSignedAttachmentUrl,
   MAX_ATTACHMENT_BYTES,
+  uploadPaymentProofFile,
   uploadRequirementAttachment,
   type UploadableFileBody,
 } from '@/services/storageService';
@@ -72,7 +80,7 @@ export default function RequestDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id, notice } = useLocalSearchParams<{ id: string; notice?: string }>();
   const { profile } = useAuth();
-  const { colors } = useTheme();
+  const { colors, themeVars } = useTheme();
 
   const [request, setRequest] = useState<RequestWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,6 +105,17 @@ export default function RequestDetailScreen() {
   // Attachment busy states
   const [busyDocType, setBusyDocType] = useState<string | null>(null);
   const [viewingAttachmentId, setViewingAttachmentId] = useState<string | null>(null);
+
+  // Payment controls
+  const [gcashRefDraft, setGcashRefDraft] = useState('');
+  const [pickedReceipt, setPickedReceipt] = useState<{
+    fileName: string;
+    contentType: string;
+    uri: string;
+    webFile?: File;
+  } | null>(null);
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [qrZoomVisible, setQrZoomVisible] = useState(false);
 
   const loadRequest = useCallback(
     async (options: { silent?: boolean } = {}) => {
@@ -198,6 +217,148 @@ export default function RequestDetailScreen() {
       });
     } finally {
       setBookingSlotId(null);
+    }
+  }
+
+  async function handleSwitchPaymentOption(method: 'cash' | 'gcash') {
+    if (!request) return;
+    setPaymentBusy(true);
+    setActionMessage(null);
+    try {
+      await setRequestPaymentOption(
+        request.id,
+        method,
+        method === 'gcash' ? 'pay_now' : 'pay_on_pickup'
+      );
+      await loadRequest({ silent: true });
+      setActionMessage({
+        tone: 'success',
+        text:
+          method === 'gcash'
+            ? 'Payment option set to GCash (Pay Now).'
+            : 'Payment option set to Cash upon claiming.',
+      });
+    } catch (error) {
+      setActionMessage({
+        tone: 'error',
+        text: toServiceError(error, 'Unable to update payment option.').message,
+      });
+    } finally {
+      setPaymentBusy(false);
+    }
+  }
+
+  async function handlePickPaymentProof() {
+    setActionMessage(null);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [...ALLOWED_ATTACHMENT_MIME_TYPES],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      if (!asset) return;
+
+      const mimeType =
+        asset.mimeType?.toLowerCase() ??
+        (asset.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+      if (!(ALLOWED_ATTACHMENT_MIME_TYPES as readonly string[]).includes(mimeType)) {
+        setActionMessage({
+          tone: 'error',
+          text: 'Only JPEG, PNG, WebP images and PDF files are accepted for receipts.',
+        });
+        return;
+      }
+
+      const sizeBytes = asset.size ?? asset.file?.size ?? 0;
+      if (sizeBytes > MAX_ATTACHMENT_BYTES) {
+        setActionMessage({ tone: 'error', text: 'Selected receipt exceeds the 5 MB limit.' });
+        return;
+      }
+
+      setPickedReceipt({
+        fileName: asset.name,
+        contentType: mimeType,
+        uri: asset.uri,
+        webFile: asset.file,
+      });
+    } catch (error) {
+      setActionMessage({
+        tone: 'error',
+        text: toServiceError(error, 'Unable to pick receipt file.').message,
+      });
+    }
+  }
+
+  async function handleSubmitGcashPayment() {
+    if (!request) return;
+    if (gcashRefDraft.trim().length < 6) {
+      setActionMessage({
+        tone: 'error',
+        text: 'Please enter a valid GCash reference number (at least 6 characters).',
+      });
+      return;
+    }
+    if (!pickedReceipt) {
+      setActionMessage({
+        tone: 'error',
+        text: 'Please attach your GCash payment receipt screenshot.',
+      });
+      return;
+    }
+
+    setPaymentBusy(true);
+    setActionMessage(null);
+    try {
+      const body: UploadableFileBody = pickedReceipt.webFile
+        ? pickedReceipt.webFile
+        : await (await fetch(pickedReceipt.uri)).arrayBuffer();
+
+      const proofPath = await uploadPaymentProofFile({
+        requestId: request.id,
+        file: body,
+        fileName: pickedReceipt.fileName,
+        contentType: pickedReceipt.contentType,
+      });
+
+      await submitGcashPayment(request.id, gcashRefDraft.trim(), proofPath);
+      setPickedReceipt(null);
+      await loadRequest({ silent: true });
+      setActionMessage({
+        tone: 'success',
+        text: 'GCash payment proof submitted for barangay staff verification.',
+      });
+    } catch (error) {
+      setActionMessage({
+        tone: 'error',
+        text: toServiceError(error, 'Unable to submit GCash payment proof.').message,
+      });
+    } finally {
+      setPaymentBusy(false);
+    }
+  }
+
+  async function handleViewPaymentProof() {
+    if (!request?.payment_proof_path) return;
+    setViewingAttachmentId('payment_proof');
+    setActionMessage(null);
+    try {
+      const { signedUrl } = await getSignedAttachmentUrl(request.payment_proof_path, {
+        logAudit: false,
+      });
+      if (Platform.OS === 'web') {
+        await Linking.openURL(signedUrl);
+      } else {
+        await WebBrowser.openBrowserAsync(signedUrl);
+      }
+    } catch (error) {
+      setActionMessage({
+        tone: 'error',
+        text: toServiceError(error, 'Unable to open uploaded receipt.').message,
+      });
+    } finally {
+      setViewingAttachmentId(null);
     }
   }
 
@@ -606,7 +767,229 @@ export default function RequestDetailScreen() {
                     )}
                   </View>
                 ) : null}
+
+                {request.barangay || profile?.barangay_name ? (
+                  <View className="border-t border-border pt-3">
+                    <Button
+                      label="Locate Barangay Hall in Google Maps"
+                      variant="outline"
+                      size="sm"
+                      icon="map"
+                      onPress={() =>
+                        void openBarangayHallInMaps(
+                          request.barangay ?? {
+                            name: profile?.barangay_name,
+                            city_municipality: profile?.city_municipality,
+                            province: profile?.province,
+                          }
+                        )
+                      }
+                      fullWidth
+                    />
+                  </View>
+                ) : null}
               </View>
+            </Card>
+
+            {/* Payment (GCash / Cash Only) */}
+            <Card
+              title="Payment (GCash / Cash)"
+              subtitle={
+                (request.payment_amount || (request.document_type?.fee ?? 0)) > 0
+                  ? `Fee: ${formatFee(request.payment_amount || (request.document_type?.fee ?? 0))} · ${getPaymentStatusLabel(request.payment_status, request.payment_method, request.payment_timing)}`
+                  : 'No document fee required'
+              }
+            >
+              {(request.payment_amount || (request.document_type?.fee ?? 0)) <= 0 ||
+              request.payment_status === 'waived' ? (
+                <Banner tone="success" message="Free certificate — no payment is needed." />
+              ) : (
+                <View className="gap-3.5">
+                  {request.payment_status === 'verified' ? (
+                    <Banner
+                      tone="success"
+                      title="Payment Verified"
+                      message={`Paid via ${request.payment_method === 'gcash' ? 'GCash' : 'Cash'}${request.payment_reference ? ` (Ref: ${request.payment_reference})` : ''}${request.payment_verified_at ? ` on ${formatDateTime(request.payment_verified_at)}` : ''}.`}
+                    />
+                  ) : request.payment_status === 'submitted' ? (
+                    <Banner
+                      tone="info"
+                      title="GCash Receipt Submitted"
+                      message={`Reference ${request.payment_reference ?? 'recorded'} is awaiting digital verification by barangay staff.`}
+                    />
+                  ) : request.payment_status === 'rejected' ? (
+                    <Banner
+                      tone="error"
+                      title="GCash Proof Rejected"
+                      message={
+                        request.payment_notes ??
+                        'Staff could not verify your GCash proof. Please re-upload a clear receipt or pay Cash on pickup.'
+                      }
+                    />
+                  ) : null}
+
+                  {request.payment_proof_path ? (
+                    <Button
+                      label="View Uploaded GCash Receipt"
+                      variant="outline"
+                      size="sm"
+                      icon="receipt-long"
+                      loading={viewingAttachmentId === 'payment_proof'}
+                      onPress={() => void handleViewPaymentProof()}
+                    />
+                  ) : null}
+
+                  {request.status !== 'completed' &&
+                  request.status !== 'rejected' &&
+                  (request.payment_status === 'unpaid' || request.payment_status === 'rejected') ? (
+                    <>
+                      <View className="flex-row gap-2">
+                        <Pressable
+                          onPress={() => void handleSwitchPaymentOption('cash')}
+                          disabled={paymentBusy}
+                          accessibilityRole="button"
+                          className={`flex-1 items-center rounded-xl border px-3 py-2.5 ${
+                            request.payment_method === 'cash'
+                              ? 'border-primary bg-primary-50'
+                              : 'border-border bg-surface-muted'
+                          }`}
+                        >
+                          <Text
+                            className={`text-xs font-bold ${
+                              request.payment_method === 'cash' ? 'text-primary' : 'text-ink-muted'
+                            }`}
+                          >
+                            Cash on Claiming
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => void handleSwitchPaymentOption('gcash')}
+                          disabled={paymentBusy}
+                          accessibilityRole="button"
+                          className={`flex-1 items-center rounded-xl border px-3 py-2.5 ${
+                            request.payment_method === 'gcash'
+                              ? 'border-primary bg-primary-50'
+                              : 'border-border bg-surface-muted'
+                          }`}
+                        >
+                          <Text
+                            className={`text-xs font-bold ${
+                              request.payment_method === 'gcash' ? 'text-primary' : 'text-ink-muted'
+                            }`}
+                          >
+                            Pay Now (GCash)
+                          </Text>
+                        </Pressable>
+                      </View>
+
+                      {request.payment_method === 'cash' ? (
+                        <Text className="text-xs leading-5 text-ink-muted">
+                          Bring exact cash (
+                          {formatFee(request.payment_amount || (request.document_type?.fee ?? 0))}
+                          ) when claiming at the Barangay Hall counter. Or tap &quot;Pay Now
+                          (GCash)&quot; above to pay digitally ahead of time.
+                        </Text>
+                      ) : (
+                        <View className="gap-3 rounded-xl border border-border bg-surface-muted p-4">
+                          {getBarangayGcashQrUrl(request.barangay?.gcash_qr_storage_path) ? (
+                            <View className="items-center gap-2">
+                              <Pressable
+                                onPress={() => setQrZoomVisible(true)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Enlarge Barangay GCash QR Code"
+                              >
+                                <Image
+                                  source={{
+                                    uri:
+                                      getBarangayGcashQrUrl(
+                                        request.barangay?.gcash_qr_storage_path
+                                      ) ?? '',
+                                  }}
+                                  resizeMode="contain"
+                                  style={{
+                                    width: 200,
+                                    height: 200,
+                                    borderRadius: 12,
+                                    backgroundColor: '#FFFFFF',
+                                  }}
+                                  accessibilityLabel="Barangay GCash QR Code"
+                                />
+                              </Pressable>
+                              <Text className="text-[11px] text-ink-subtle">
+                                Tap QR code to enlarge
+                              </Text>
+                              {request.barangay?.gcash_account_name ||
+                              request.barangay?.gcash_account_number ? (
+                                <Text className="text-center text-xs font-semibold text-ink">
+                                  {[
+                                    request.barangay?.gcash_account_name,
+                                    request.barangay?.gcash_account_number,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </Text>
+                              ) : null}
+                            </View>
+                          ) : (
+                            <Banner
+                              tone="warning"
+                              message="Your barangay office has not uploaded a GCash QR image yet. Switch to Cash on Claiming or check back shortly."
+                            />
+                          )}
+
+                          <View className="rounded-xl border border-border bg-surface px-3.5 py-2.5">
+                            <Text className="text-xs font-semibold text-primary">
+                              GCash Reference Number
+                            </Text>
+                            <TextInput
+                              value={gcashRefDraft}
+                              onChangeText={setGcashRefDraft}
+                              placeholder="Enter reference no. from your GCash receipt"
+                              placeholderTextColor={colors.inkSubtle}
+                              maxLength={64}
+                              editable={!paymentBusy}
+                              className="mt-1 min-h-[26px] p-0 text-sm font-medium text-ink"
+                            />
+                          </View>
+
+                          {pickedReceipt ? (
+                            <View className="flex-row items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-800 dark:bg-emerald-950/50">
+                              <Text
+                                className="flex-1 text-xs font-semibold text-emerald-900 dark:text-emerald-200"
+                                numberOfLines={1}
+                              >
+                                {pickedReceipt.fileName}
+                              </Text>
+                              <Pressable onPress={() => setPickedReceipt(null)} hitSlop={8}>
+                                <MaterialIcons name="close" size={18} color={colors.inkSubtle} />
+                              </Pressable>
+                            </View>
+                          ) : (
+                            <Button
+                              label="Choose GCash Receipt"
+                              icon="upload-file"
+                              variant="outline"
+                              size="sm"
+                              disabled={paymentBusy}
+                              onPress={() => void handlePickPaymentProof()}
+                            />
+                          )}
+
+                          <Button
+                            label="Submit GCash Payment Proof"
+                            icon="check"
+                            size="sm"
+                            loading={paymentBusy}
+                            onPress={() => void handleSubmitGcashPayment()}
+                            fullWidth
+                          />
+                        </View>
+                      )}
+                    </>
+                  ) : null}
+                </View>
+              )}
             </Card>
 
             {/* Purpose */}
@@ -740,6 +1123,42 @@ export default function RequestDetailScreen() {
           </>
         )}
       </View>
+      <Modal
+        visible={qrZoomVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setQrZoomVisible(false)}
+      >
+        <View
+          style={themeVars}
+          className="flex-1 items-center justify-center bg-black/75 px-6"
+        >
+          <View className="w-full max-w-sm items-center gap-4 rounded-2xl border border-border bg-surface p-5">
+            <Text className="text-base font-bold text-ink">Barangay GCash QR Code</Text>
+            {getBarangayGcashQrUrl(request?.barangay?.gcash_qr_storage_path) ? (
+              <Image
+                source={{
+                  uri: getBarangayGcashQrUrl(request?.barangay?.gcash_qr_storage_path) ?? '',
+                }}
+                resizeMode="contain"
+                style={{
+                  width: 280,
+                  height: 280,
+                  borderRadius: 12,
+                  backgroundColor: '#FFFFFF',
+                }}
+              />
+            ) : null}
+            <Button
+              label="Close"
+              variant="primary"
+              size="sm"
+              onPress={() => setQrZoomVisible(false)}
+              fullWidth
+            />
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

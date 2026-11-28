@@ -1,8 +1,10 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { router } from 'expo-router';
 import { useState, type ComponentProps } from 'react';
 import { Linking, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 
 import type { ThemePreference } from '@/constants/theme';
+import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getPermissionEnableSteps } from '@/services/permissionService';
@@ -35,6 +37,7 @@ export interface SettingsModalProps {
  * DocuDash Terms & Conditions.
  */
 export function SettingsModal({ visible, onClose }: SettingsModalProps) {
+  const { isAuthenticated } = useAuth();
   const { preference, setPreference, colors, themeVars } = useTheme();
   const {
     isSupported,
@@ -306,6 +309,30 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
                     </View>
                     <MaterialIcons name="chevron-right" size={20} color={colors.inkSubtle} />
                   </Pressable>
+                  {!isAuthenticated ? (
+                    <Pressable
+                      onPress={() => {
+                        onClose();
+                        router.push('/(auth)/barangay-admin-request');
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Request Barangay Admin Access"
+                      className="flex-row items-center justify-between rounded-xl border border-border bg-surface-muted px-4 py-3"
+                    >
+                      <View className="flex-row items-center gap-3">
+                        <MaterialIcons name="account-balance" size={18} color={colors.primary} />
+                        <View>
+                          <Text className="text-sm font-semibold text-ink">
+                            Register Barangay Office
+                          </Text>
+                          <Text className="text-[11px] text-ink-subtle">
+                            Request admin access via docudash.app@gmail.com
+                          </Text>
+                        </View>
+                      </View>
+                      <MaterialIcons name="chevron-right" size={20} color={colors.inkSubtle} />
+                    </Pressable>
+                  ) : null}
                 </View>
 
                 <View className="gap-3 border-t border-border pt-3">

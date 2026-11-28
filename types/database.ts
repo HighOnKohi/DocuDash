@@ -11,6 +11,12 @@ export type UserRole = 'resident' | 'staff' | 'admin';
 
 export type RequestStatus = 'pending' | 'reviewing' | 'ready' | 'completed' | 'rejected';
 
+export type PaymentMethod = 'cash' | 'gcash';
+
+export type PaymentTiming = 'pay_now' | 'pay_on_pickup';
+
+export type PaymentStatus = 'unpaid' | 'submitted' | 'verified' | 'rejected' | 'waived';
+
 /** One required document entry inside `document_types.required_docs`. */
 export interface RequiredDocSpec {
   key: string;
@@ -30,11 +36,114 @@ export type AuditAction =
   | 'attachment_viewed'
   | 'attachments_purged'
   | 'notification_dispatched'
-  | 'account_deleted';
+  | 'account_deleted'
+  | 'payment_submitted'
+  | 'payment_verified'
+  | 'payment_rejected'
+  | 'barangay_updated';
 
 export interface Database {
   public: {
     Tables: {
+      barangays: {
+        Row: {
+          id: string;
+          psgc_code: string | null;
+          name: string;
+          city_municipality: string;
+          province: string;
+          region: string;
+          hall_address: string;
+          hall_latitude: number | null;
+          hall_longitude: number | null;
+          google_maps_url: string | null;
+          gcash_qr_storage_path: string | null;
+          gcash_account_name: string | null;
+          gcash_account_number: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          psgc_code?: string | null;
+          name: string;
+          city_municipality: string;
+          province?: string;
+          region?: string;
+          hall_address?: string;
+          hall_latitude?: number | null;
+          hall_longitude?: number | null;
+          google_maps_url?: string | null;
+          gcash_qr_storage_path?: string | null;
+          gcash_account_name?: string | null;
+          gcash_account_number?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          psgc_code?: string | null;
+          name?: string;
+          city_municipality?: string;
+          province?: string;
+          region?: string;
+          hall_address?: string;
+          hall_latitude?: number | null;
+          hall_longitude?: number | null;
+          google_maps_url?: string | null;
+          gcash_qr_storage_path?: string | null;
+          gcash_account_name?: string | null;
+          gcash_account_number?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      barangay_admin_requests: {
+        Row: {
+          id: string;
+          psgc_code: string | null;
+          barangay_name: string;
+          city_municipality: string;
+          province: string;
+          region: string;
+          hall_address: string;
+          google_maps_url: string | null;
+          applicant_name: string;
+          applicant_position: string;
+          applicant_email: string;
+          contact_number: string;
+          notes: string | null;
+          status: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          psgc_code?: string | null;
+          barangay_name: string;
+          city_municipality: string;
+          province?: string;
+          region?: string;
+          hall_address?: string;
+          google_maps_url?: string | null;
+          applicant_name: string;
+          applicant_position: string;
+          applicant_email: string;
+          contact_number: string;
+          notes?: string | null;
+          status?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          status?: string;
+          notes?: string | null;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -44,6 +153,12 @@ export interface Database {
           role: UserRole;
           privacy_consent_at: string;
           created_at: string;
+          barangay_id: string | null;
+          barangay_code: string | null;
+          barangay_name: string | null;
+          city_municipality: string | null;
+          province: string | null;
+          region: string | null;
         };
         Insert: {
           id: string;
@@ -53,6 +168,12 @@ export interface Database {
           role?: UserRole;
           privacy_consent_at: string;
           created_at?: string;
+          barangay_id?: string | null;
+          barangay_code?: string | null;
+          barangay_name?: string | null;
+          city_municipality?: string | null;
+          province?: string | null;
+          region?: string | null;
         };
         Update: {
           id?: string;
@@ -62,6 +183,12 @@ export interface Database {
           role?: UserRole;
           privacy_consent_at?: string;
           created_at?: string;
+          barangay_id?: string | null;
+          barangay_code?: string | null;
+          barangay_name?: string | null;
+          city_municipality?: string | null;
+          province?: string | null;
+          region?: string | null;
         };
         Relationships: [];
       };
@@ -136,6 +263,16 @@ export interface Database {
           completed_at: string | null;
           created_at: string;
           updated_at: string;
+          barangay_id: string | null;
+          payment_method: PaymentMethod;
+          payment_timing: PaymentTiming;
+          payment_status: PaymentStatus;
+          payment_amount: number;
+          payment_reference: string | null;
+          payment_proof_path: string | null;
+          payment_notes: string | null;
+          payment_verified_by: string | null;
+          payment_verified_at: string | null;
         };
         Insert: {
           id?: string;
@@ -150,6 +287,16 @@ export interface Database {
           completed_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          barangay_id?: string | null;
+          payment_method?: PaymentMethod;
+          payment_timing?: PaymentTiming;
+          payment_status?: PaymentStatus;
+          payment_amount?: number;
+          payment_reference?: string | null;
+          payment_proof_path?: string | null;
+          payment_notes?: string | null;
+          payment_verified_by?: string | null;
+          payment_verified_at?: string | null;
         };
         Update: {
           id?: string;
@@ -164,6 +311,16 @@ export interface Database {
           completed_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          barangay_id?: string | null;
+          payment_method?: PaymentMethod;
+          payment_timing?: PaymentTiming;
+          payment_status?: PaymentStatus;
+          payment_amount?: number;
+          payment_reference?: string | null;
+          payment_proof_path?: string | null;
+          payment_notes?: string | null;
+          payment_verified_by?: string | null;
+          payment_verified_at?: string | null;
         };
         Relationships: [
           {
@@ -192,6 +349,13 @@ export interface Database {
             columns: ['reviewed_by'];
             isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'requests_barangay_id_fkey';
+            columns: ['barangay_id'];
+            isOneToOne: false;
+            referencedRelation: 'barangays';
             referencedColumns: ['id'];
           },
         ];
@@ -290,10 +454,49 @@ export interface Database {
           storage_path: string;
         }[];
       };
+      assign_my_barangay: {
+        Args: {
+          p_barangay_code: string | null;
+          p_barangay_name: string;
+          p_city_municipality: string;
+          p_province?: string;
+          p_region?: string;
+        };
+        Returns: Database['public']['Tables']['profiles']['Row'];
+      };
+      set_request_payment_option: {
+        Args: {
+          p_request_id: string;
+          p_method: PaymentMethod;
+          p_timing: PaymentTiming;
+        };
+        Returns: Database['public']['Tables']['requests']['Row'];
+      };
+      submit_gcash_payment: {
+        Args: {
+          p_request_id: string;
+          p_reference_number: string;
+          p_proof_path: string;
+        };
+        Returns: Database['public']['Tables']['requests']['Row'];
+      };
+      verify_request_payment: {
+        Args: {
+          p_request_id: string;
+          p_decision: 'verified' | 'rejected';
+          p_method?: PaymentMethod | null;
+          p_reference?: string | null;
+          p_notes?: string | null;
+        };
+        Returns: Database['public']['Tables']['requests']['Row'];
+      };
     };
     Enums: {
       user_role: UserRole;
       request_status: RequestStatus;
+      payment_method: PaymentMethod;
+      payment_timing: PaymentTiming;
+      payment_status: PaymentStatus;
     };
     CompositeTypes: Record<string, never>;
   };
@@ -319,6 +522,18 @@ export type PickupSlotUpdate = Pick<
   'slot_date' | 'time_window' | 'max_capacity'
 >;
 
+export type Barangay = Database['public']['Tables']['barangays']['Row'];
+export type BarangayUpdate = Pick<
+  Database['public']['Tables']['barangays']['Update'],
+  | 'hall_address'
+  | 'hall_latitude'
+  | 'hall_longitude'
+  | 'google_maps_url'
+  | 'gcash_qr_storage_path'
+  | 'gcash_account_name'
+  | 'gcash_account_number'
+>;
+
 export type DocumentRequest = Database['public']['Tables']['requests']['Row'];
 export type RequestAttachment = Database['public']['Tables']['request_attachments']['Row'];
 export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];
@@ -329,6 +544,7 @@ export interface RequestWithDetails extends DocumentRequest {
   pickup_slot: Pick<PickupSlot, 'id' | 'slot_date' | 'time_window' | 'max_capacity' | 'booked_count'> | null;
   resident?: Pick<Profile, 'id' | 'full_name' | 'address' | 'contact_number'> | null;
   reviewer?: Pick<Profile, 'id' | 'full_name'> | null;
+  barangay?: Barangay | null;
   attachments?: RequestAttachment[];
 }
 
@@ -389,6 +605,30 @@ export interface DeleteAccountResponse {
   deletedRequestsCount: number;
   deletedAttachmentsCount: number;
   auditLogged: boolean;
+}
+
+/** Request payload accepted by Vercel `POST /api/request-barangay-admin`. */
+export interface BarangayAdminRequestPayload {
+  psgcCode?: string | null;
+  barangayName: string;
+  cityMunicipality: string;
+  province?: string;
+  region?: string;
+  hallAddress: string;
+  googleMapsUrl?: string | null;
+  applicantName: string;
+  applicantPosition: string;
+  applicantEmail: string;
+  contactNumber: string;
+  notes?: string | null;
+}
+
+/** Response returned by Vercel `POST /api/request-barangay-admin`. */
+export interface BarangayAdminRequestResponse {
+  ok: true;
+  requestId: string | null;
+  emailedTo: string;
+  deliveredVia: 'email' | 'recorded_only';
 }
 
 /** Standard error response returned by Vercel `/api/*` endpoints. */

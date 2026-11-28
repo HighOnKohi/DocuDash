@@ -212,3 +212,147 @@ export async function sendStatusNotificationViaSmtp(
 
   return { sent: false };
 }
+
+export interface BarangayAdminEmailParams {
+  to: string;
+  requestId: string | null;
+  barangayName: string;
+  cityMunicipality: string;
+  province: string;
+  region: string;
+  psgcCode: string | null;
+  hallAddress: string;
+  googleMapsUrl: string | null;
+  applicantName: string;
+  applicantPosition: string;
+  applicantEmail: string;
+  contactNumber: string;
+  notes: string | null;
+}
+
+function renderBarangayAdminEmailHtml(params: BarangayAdminEmailParams): string {
+  const esc = escapeHtml;
+  const locationLine = [params.barangayName, params.cityMunicipality, params.province, params.region]
+    .filter(Boolean)
+    .map(esc)
+    .join(', ');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New Barangay Admin Request</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F172A;">
+    <div style="background-color:#F8FAFC;padding:32px 16px;">
+      <div style="max-width:580px;margin:0 auto;background-color:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;">
+        <div style="background-color:#01227F;padding:24px 28px;border-bottom:4px solid #FBC128;">
+          <div style="font-size:20px;font-weight:700;color:#FFFFFF;letter-spacing:-0.01em;">DocuDash</div>
+          <div style="font-size:12px;color:#DCE5FF;margin-top:4px;">Barangay Onboarding &amp; Admin Access Request</div>
+        </div>
+
+        <div style="padding:28px;">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#01227F;">Barangay Admin Request</div>
+          <h1 style="font-size:22px;font-weight:700;color:#0F172A;margin:8px 0 16px;line-height:1.3;">${esc(params.barangayName)}, ${esc(params.cityMunicipality)}</h1>
+
+          <div style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px 18px;margin-bottom:20px;">
+            <div style="font-size:12px;color:#64748B;margin-bottom:2px;">Barangay Location</div>
+            <div style="font-size:14px;font-weight:600;color:#0F172A;margin-bottom:10px;">${locationLine}${params.psgcCode ? ` (PSGC: ${esc(params.psgcCode)})` : ''}</div>
+            <div style="font-size:12px;color:#64748B;margin-bottom:2px;">Barangay Hall Address</div>
+            <div style="font-size:14px;font-weight:600;color:#0F172A;margin-bottom:${params.googleMapsUrl ? '10px' : '0'};">${esc(params.hallAddress)}</div>
+            ${params.googleMapsUrl ? `<div style="font-size:12px;color:#64748B;margin-bottom:2px;">Google Maps Link</div><div style="font-size:13px;color:#01227F;word-break:break-all;">${esc(params.googleMapsUrl)}</div>` : ''}
+          </div>
+
+          <div style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px 18px;">
+            <div style="font-size:12px;color:#64748B;margin-bottom:2px;">Official / Applicant</div>
+            <div style="font-size:14px;font-weight:600;color:#0F172A;margin-bottom:10px;">${esc(params.applicantName)} — ${esc(params.applicantPosition)}</div>
+            <div style="font-size:12px;color:#64748B;margin-bottom:2px;">Email &amp; Contact</div>
+            <div style="font-size:14px;font-weight:600;color:#0F172A;margin-bottom:${params.notes ? '10px' : '0'};">${esc(params.applicantEmail)} · ${esc(params.contactNumber)}</div>
+            ${params.notes ? `<div style="font-size:12px;color:#64748B;margin-bottom:2px;">Notes</div><div style="font-size:13px;color:#334155;">${esc(params.notes)}</div>` : ''}
+          </div>
+
+          <p style="font-size:12px;line-height:1.5;color:#64748B;margin:20px 0 0;">
+            Request ID: ${esc(params.requestId ?? 'N/A')} · Reply directly to this email to contact ${esc(params.applicantName)}.
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>`;
+}
+
+/**
+ * Emails a Barangay Admin onboarding application to DocuDash administrators
+ * (default `docudash.app@gmail.com`). Falls back to `{ sent: false }` if SMTP
+ * credentials are not configured.
+ */
+export async function sendBarangayAdminRequestEmail(
+  params: BarangayAdminEmailParams
+): Promise<SendStatusEmailResult> {
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS?.trim();
+  if (!user || !pass) {
+    return { sent: false };
+  }
+
+  const host = process.env.SMTP_HOST?.trim() || DEFAULT_SMTP_HOST;
+  const port = parseSmtpPort(process.env.SMTP_PORT);
+  const from = process.env.SMTP_FROM?.trim() || `DocuDash <${user}>`;
+  const html = renderBarangayAdminEmailHtml(params);
+  const text = [
+    `DocuDash Barangay Admin Request`,
+    `Barangay: ${params.barangayName}, ${params.cityMunicipality}${params.province ? `, ${params.province}` : ''}`,
+    `Hall Address: ${params.hallAddress}`,
+    params.googleMapsUrl ? `Google Maps: ${params.googleMapsUrl}` : '',
+    `Applicant: ${params.applicantName} (${params.applicantPosition})`,
+    `Email: ${params.applicantEmail}`,
+    `Contact: ${params.contactNumber}`,
+    params.notes ? `Notes: ${params.notes}` : '',
+    `Request ID: ${params.requestId ?? 'N/A'}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  for (let attempt = 0; attempt <= MAX_RETRY_ATTEMPTS; attempt += 1) {
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass },
+      connectionTimeout: SOCKET_TIMEOUT_MS,
+      greetingTimeout: SOCKET_TIMEOUT_MS,
+      socketTimeout: SOCKET_TIMEOUT_MS,
+    });
+
+    try {
+      const info = await transporter.sendMail({
+        from,
+        to: params.to,
+        replyTo: params.applicantEmail,
+        subject: `[DocuDash Admin Request] ${params.barangayName}, ${params.cityMunicipality}`,
+        html,
+        text,
+      });
+
+      return { sent: true, emailId: info.messageId || undefined };
+    } catch (caught) {
+      if (isRetryableSmtpError(caught) && attempt < MAX_RETRY_ATTEMPTS) {
+        await sleep(RETRY_DELAY_MS);
+        continue;
+      }
+
+      const { code, responseCode } = getSmtpErrorDetails(caught);
+      console.error('[DocuDash SMTP barangay admin email error]', { code, responseCode });
+      throw new HttpError(
+        502,
+        'email_delivery_failed',
+        'Unable to email docudash.app@gmail.com right now. Please try again shortly.'
+      );
+    } finally {
+      transporter.close();
+    }
+  }
+
+  return { sent: false };
+}

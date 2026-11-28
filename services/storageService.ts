@@ -156,6 +156,52 @@ export async function uploadRequirementAttachment(
 }
 
 /**
+ * Uploads a resident's GCash receipt/screenshot into the private `requirements`
+ * bucket using `payment-proof-...` naming so staff can inspect it via 60s signed URLs.
+ */
+export async function uploadPaymentProofFile(input: {
+  requestId: string;
+  file: UploadableFileBody;
+  fileName: string;
+  contentType: string;
+}): Promise<string> {
+  const contentType = input.contentType.trim().toLowerCase();
+  if (!isAllowedMimeType(contentType)) {
+    throw new ServiceError('Only JPEG, PNG, WebP images and PDF receipts are accepted.', {
+      code: 'unsupported_file_type',
+    });
+  }
+
+  const byteLength = getFileByteLength(input.file);
+  if (byteLength <= 0) {
+    throw new ServiceError('Selected receipt file is empty.', { code: 'empty_file' });
+  }
+  if (byteLength > MAX_ATTACHMENT_BYTES) {
+    throw new ServiceError('Receipt file exceeds the 5 MB upload limit.', {
+      code: 'file_too_large',
+    });
+  }
+
+  const userId = await requireAuthenticatedUserId();
+  const safeBase = sanitizeFileName(input.fileName, MIME_TO_EXT[contentType]);
+  const storagePath = `${userId}/${input.requestId}/payment-proof-${safeBase}`.slice(0, 275);
+  const supabase = getSupabaseClient();
+
+  const { error: uploadError } = await supabase.storage
+    .from(REQUIREMENTS_BUCKET)
+    .upload(storagePath, input.file, {
+      contentType,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw toServiceError(uploadError, 'Unable to upload payment receipt.');
+  }
+
+  return storagePath;
+}
+
+/**
  * Deletes an attachment from a resident's own pending request (metadata row
  * first, then the private storage object).
  */
