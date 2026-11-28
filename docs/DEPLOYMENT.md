@@ -126,9 +126,11 @@ npx eas-cli@latest build --platform ios --profile production
    npx expo prebuild --platform android --no-install
    cd android
    .\gradlew.bat assembleRelease
-   keytool -printcert -jarfile app\build\outputs\apk\release\app-release.apk
+   $sdk = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { "$env:LOCALAPPDATA\Android\Sdk" }
+   $apksigner = (Get-ChildItem "$sdk\build-tools\*\apksigner.bat" | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+   & $apksigner verify --verbose --print-certs app\build\outputs\apk\release\app-release.apk
    ```
-   Confirm the certificate output matches your `docudash-release` key (not `Android Debug`).
+   *(Modern Android APKs with `minSdk >= 24` use APK Signature Scheme v2 rather than v1 JAR signing, so `keytool -printcert -jarfile` reports `Not a signed jar file`; use Android SDK's `apksigner` instead and confirm the certificate DN shows your `docudash-release` key, not `Android Debug`.)*
 4. **Play Protect appeal (free, no Play Console required):** If Android Play Protect flags your signed sideloaded APK, submit the APK / SHA-256 fingerprint via Google's free Play Protect Appeal form (`https://support.google.com/googleplay/android-developer/contact/protectappeals`).
 
 ---

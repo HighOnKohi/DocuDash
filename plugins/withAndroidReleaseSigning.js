@@ -50,7 +50,7 @@ const RELEASE_SIGNING_CONFIG_BLOCK = `        release {
             }
         }`;
 
-const RELEASE_BUILD_TYPE_SIGNING = `            if (docudashHasReleaseSigning) {
+const RELEASE_BUILD_TYPE_SIGNING = `if (docudashHasReleaseSigning) {
                 signingConfig signingConfigs.release
             } else {
                 println("[DocuDash] WARNING: No release keystore configured (credentials/keystore.properties or DOCUDASH_UPLOAD_*). Signing release build with debug.keystore.")
@@ -66,12 +66,12 @@ function applyReleaseSigning(buildGradle) {
 
   if (!updated.includes('signingConfig signingConfigs.release')) {
     updated = updated.replace(
-      /(signingConfigs\s*\{\s*debug\s*\{[\s\S]*?\}\s*)(\})/,
-      `$1${RELEASE_SIGNING_CONFIG_BLOCK}\n    $2`
+      /(signingConfigs\s*\{\s*debug\s*\{[\s\S]*?\})\s*(\})/,
+      `$1\n${RELEASE_SIGNING_CONFIG_BLOCK}\n    $2`
     );
 
     updated = updated.replace(
-      /(release\s*\{[\s\S]*?)signingConfig signingConfigs\.debug/,
+      /(buildTypes\s*\{\s*debug\s*\{[\s\S]*?\}\s*release\s*\{[\s\S]*?)signingConfig signingConfigs\.debug/,
       `$1${RELEASE_BUILD_TYPE_SIGNING}`
     );
   }
