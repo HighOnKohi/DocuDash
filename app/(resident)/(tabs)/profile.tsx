@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
+import { PermissionsPromptModal } from '@/components/PermissionsPromptModal';
 import { PrivacyPolicyModal } from '@/components/PrivacyPolicyModal';
 import { Banner } from '@/components/StateView';
 import { TermsModal } from '@/components/TermsModal';
@@ -23,6 +24,7 @@ import type { ThemePreference } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { getPermissionEnableSteps } from '@/services/permissionService';
 import { toServiceError } from '@/services/supabase';
 
 type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
@@ -55,6 +57,7 @@ export default function ResidentProfileScreen() {
   const [signingOut, setSigningOut] = useState(false);
   const [termsVisible, setTermsVisible] = useState(false);
   const [privacyVisible, setPrivacyVisible] = useState(false);
+  const [permissionsModalVisible, setPermissionsModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [notificationNotice, setNotificationNotice] = useState<{
     tone: 'success' | 'warning' | 'error';
@@ -66,6 +69,7 @@ export default function ResidentProfileScreen() {
 
   const notificationsActive =
     notificationsSupported && notificationsEnabled && permissionStatus === 'granted';
+  const notifGuide = getPermissionEnableSteps('notifications');
 
   const fullName = fullNameDraft ?? profile?.full_name ?? '';
   const contactNumber = contactNumberDraft ?? profile?.contact_number ?? '';
@@ -350,6 +354,22 @@ export default function ResidentProfileScreen() {
                     </View>
                   </View>
 
+                  {permissionStatus === 'denied' && notifGuide.steps.length > 0 ? (
+                    <View className="gap-1.5 rounded-xl border border-border bg-surface-muted p-3.5">
+                      <Text className="text-xs font-bold text-ink">{notifGuide.heading}</Text>
+                      {notifGuide.steps.map((step, index) => (
+                        <Text key={step} className="text-xs leading-4 text-ink-muted">
+                          {index + 1}. {step}
+                        </Text>
+                      ))}
+                      {notifGuide.note ? (
+                        <Text className="mt-1 text-[11px] leading-4 text-ink-subtle">
+                          {notifGuide.note}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+
                   <View className="flex-row flex-wrap gap-2.5">
                     {permissionStatus === 'denied' ? (
                       <Button
@@ -376,6 +396,13 @@ export default function ResidentProfileScreen() {
                       icon="notifications"
                       loading={notificationsBusy}
                       onPress={() => void handleSendTestNotification()}
+                    />
+                    <Button
+                      label="Permissions Guide"
+                      variant="outline"
+                      size="sm"
+                      icon="help-outline"
+                      onPress={() => setPermissionsModalVisible(true)}
                     />
                   </View>
                 </>
@@ -495,6 +522,10 @@ export default function ResidentProfileScreen() {
         </View>
       </ScrollView>
 
+      <PermissionsPromptModal
+        visible={permissionsModalVisible}
+        onClose={() => setPermissionsModalVisible(false)}
+      />
       <PrivacyPolicyModal visible={privacyVisible} onClose={() => setPrivacyVisible(false)} />
       <TermsModal visible={termsVisible} onClose={() => setTermsVisible(false)} />
       <DeleteAccountModal

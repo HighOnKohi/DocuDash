@@ -15,6 +15,11 @@ export type NotificationPermissionStatus =
   | 'undetermined'
   | 'unsupported';
 
+export interface NotificationPermissionDetails {
+  status: NotificationPermissionStatus;
+  canAskAgain: boolean;
+}
+
 let handlerConfigured = false;
 let channelReadyPromise: Promise<void> | null = null;
 
@@ -88,13 +93,22 @@ export async function ensureNotificationChannelAsync(): Promise<void> {
   await channelReadyPromise;
 }
 
-export async function getNotificationPermissionStatus(): Promise<NotificationPermissionStatus> {
+export async function getNotificationPermissionDetails(): Promise<NotificationPermissionDetails> {
   if (!isNativeNotificationsSupported()) {
-    return 'unsupported';
+    return { status: 'unsupported', canAskAgain: false };
   }
 
   const settings = await Notifications.getPermissionsAsync();
-  return mapPermissionResponse(settings);
+  const status = mapPermissionResponse(settings);
+  return {
+    status,
+    canAskAgain: status === 'granted' ? true : (settings.canAskAgain ?? status !== 'denied'),
+  };
+}
+
+export async function getNotificationPermissionStatus(): Promise<NotificationPermissionStatus> {
+  const details = await getNotificationPermissionDetails();
+  return details.status;
 }
 
 export async function requestNotificationPermissions(): Promise<NotificationPermissionStatus> {

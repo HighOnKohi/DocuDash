@@ -9,15 +9,23 @@ import {
   type Theme,
 } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 
 import { BrandMark } from '@/components/BrandMark';
+import { PermissionsPromptModal } from '@/components/PermissionsPromptModal';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import { AppThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import {
+  getCameraPermissionDetails,
+  getNotificationPermissionStatusDetails,
+  getPermissionPromptDismissed,
+  isNativePermissionsSupported,
+  setPermissionPromptDismissed,
+} from '@/services/permissionService';
 
-void SplashScreen.preventAutoHideAsync().catch(() => {});
+void SplashScreen.preventAutoHideAsync().catch(() => { });
 
 export const unstable_settings = {
   anchor: '(auth)',
@@ -28,15 +36,89 @@ function SplashScreenController() {
 
   useEffect(() => {
     if (!isLoading) {
-      void SplashScreen.hideAsync().catch(() => {});
+      void SplashScreen.hideAsync().catch(() => { });
     }
   }, [isLoading]);
 
   return null;
 }
 
+/**
+ * Prompts signed-in native mobile users once per session if essential device
+ * permissions (Notifications, and Camera for staff) have not been granted yet.
+ */
+function PermissionsPromptController() {
+  const { user, isAuthenticated, isPasswordRecovery, isStaff, isLoading } = useAuth();
+  const [promptVisible, setPromptVisible] = useState(false);
+  const promptedUserRef = useRef<string | null>(null);
+  const userId = user?.id ?? null;
+
+  useEffect(() => {
+    if (!isNativePermissionsSupported() || isLoading || isPasswordRecovery) {
+      return;
+    }
+
+    if (!isAuthenticated || !userId) {
+      promptedUserRef.current = null;
+      return;
+    }
+
+    if (promptedUserRef.current === userId) {
+      return;
+    }
+    promptedUserRef.current = userId;
+
+    let active = true;
+    void (async () => {
+      try {
+        const dismissed = await getPermissionPromptDismissed();
+        if (!active || dismissed) return;
+
+        const [notif, camera] = await Promise.all([
+          getNotificationPermissionStatusDetails(),
+          isStaff
+            ? getCameraPermissionDetails()
+            : Promise.resolve({ status: 'granted' as const, canAskAgain: true }),
+        ]);
+
+        if (!active) return;
+        const needsNotif = notif.status !== 'granted' && notif.status !== 'unsupported';
+        const needsCamera =
+          isStaff && camera.status !== 'granted' && camera.status !== 'unsupported';
+
+        if (needsNotif || needsCamera) {
+          setPromptVisible(true);
+        }
+      } catch {
+        // Ignore transient startup permission query failures.
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, isLoading, isPasswordRecovery, isStaff, userId]);
+
+  if (!isNativePermissionsSupported() || !isAuthenticated) {
+    return null;
+  }
+
+  return (
+    <PermissionsPromptModal
+      visible={promptVisible}
+      onClose={() => setPromptVisible(false)}
+      includeCamera={isStaff}
+      showDismissForever
+      onDismissForever={() => {
+        setPromptVisible(false);
+        void setPermissionPromptDismissed(true).catch(() => { });
+      }}
+    />
+  );
+}
+
 function RootNavigator() {
-  const { isAuthenticated, isStaff, isLoading } = useAuth();
+  const { isAuthenticated, isPasswordRecovery, isStaff, isLoading } = useAuth();
   const { colors } = useTheme();
 
   if (isLoading) {
@@ -56,23 +138,27 @@ function RootNavigator() {
         contentStyle: { backgroundColor: colors.surfaceMuted },
       }}
     >
+      <Stack.Screen name="reset-password" />
+
       <Stack.Protected
-        guard={!isAuthenticated}
-        redirectTo={isStaff ? '/(admin)' : '/(resident)/(tabs)'}
+        guard={!isAuthenticated && !isPasswordRecovery}
+        redirectTo={isPasswordRecovery ? '/reset-password' : isStaff ? '/(admin)' : '/(resident)/(tabs)'}
       >
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
 
       <Stack.Protected
-        guard={isAuthenticated && !isStaff}
-        redirectTo={isAuthenticated ? '/(admin)' : '/(auth)'}
+        guard={isAuthenticated && !isStaff && !isPasswordRecovery}
+        redirectTo={isPasswordRecovery ? '/reset-password' : isAuthenticated ? '/(admin)' : '/(auth)'}
       >
         <Stack.Screen name="(resident)" />
       </Stack.Protected>
 
       <Stack.Protected
-        guard={isAuthenticated && isStaff}
-        redirectTo={isAuthenticated ? '/(resident)/(tabs)' : '/(auth)'}
+        guard={isAuthenticated && isStaff && !isPasswordRecovery}
+        redirectTo={
+          isPasswordRecovery ? '/reset-password' : isAuthenticated ? '/(resident)/(tabs)' : '/(auth)'
+        }
       >
         <Stack.Screen name="(admin)" />
       </Stack.Protected>
@@ -107,6 +193,7 @@ function RootThemedShell() {
         <AuthProvider>
           <NotificationProvider>
             <SplashScreenController />
+            <PermissionsPromptController />
             <RootNavigator />
           </NotificationProvider>
         </AuthProvider>

@@ -205,11 +205,133 @@ export async function sendPasswordReset(email: string): Promise<void> {
   }
 
   const supabase = getSupabaseClient();
-  const redirectTo = `${getAppOrigin()}/login`;
+  const redirectTo = `${getAppOrigin()}/reset-password`;
 
   const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
   if (error) {
     throw toServiceError(error, 'Unable to send password reset email.');
+  }
+}
+
+export interface RecoveryUrlParams {
+  tokenHash: string | null;
+  code: string | null;
+  type: string | null;
+  errorDescription: string | null;
+}
+
+/**
+ * Returns `true` when running on web at the `/reset-password` route or with
+ * `type=recovery` in query/hash params so AuthContext can keep the user on the
+ * password reset screen instead of redirecting to a dashboard.
+ */
+export function isRecoveryUrl(): boolean {
+  if (typeof window === 'undefined' || !window.location) {
+    return false;
+  }
+
+  const { pathname, search, hash } = window.location;
+  if (pathname === '/reset-password') {
+    return true;
+  }
+
+  return /(?:^|[?&#])type=recovery(?:&|$)/i.test(`${search}&${hash}`);
+}
+
+/** Reads recovery parameters from both query string and URL fragment on web. */
+export function parseRecoveryUrlParams(): RecoveryUrlParams {
+  if (typeof window === 'undefined' || !window.location) {
+    return { tokenHash: null, code: null, type: null, errorDescription: null };
+  }
+
+  const searchParams = new URLSearchParams(window.location.search ?? '');
+  const hashRaw = (window.location.hash ?? '').replace(/^#/, '');
+  const hashParams = new URLSearchParams(hashRaw);
+
+  return {
+    tokenHash: searchParams.get('token_hash') ?? hashParams.get('token_hash'),
+    code: searchParams.get('code') ?? hashParams.get('code'),
+    type: searchParams.get('type') ?? hashParams.get('type'),
+    errorDescription: searchParams.get('error_description') ?? hashParams.get('error_description'),
+  };
+}
+
+/**
+ * Verifies a Supabase password recovery link via `token_hash` (cross-device
+ * safe), PKCE `code`, or an already-parsed fragment recovery session.
+ */
+export async function establishPasswordRecoverySession(params?: {
+  tokenHash?: string | null;
+  code?: string | null;
+  errorDescription?: string | null;
+}): Promise<Session> {
+  if (params?.errorDescription?.trim()) {
+    throw new ServiceError(params.errorDescription.trim(), {
+      code: 'recovery_link_error',
+    });
+  }
+
+  const supabase = getSupabaseClient();
+  const tokenHash = params?.tokenHash?.trim() ?? '';
+  const code = params?.code?.trim() ?? '';
+
+  if (tokenHash) {
+    const { data, error } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: 'recovery',
+    });
+    if (error) {
+      throw toServiceError(
+        error,
+        'This password reset link is invalid or has expired. Please request a new reset email.'
+      );
+    }
+    if (data.session) {
+      return data.session;
+    }
+  }
+
+  if (code) {
+    const existing = await getSession();
+    if (existing) {
+      return existing;
+    }
+
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      throw toServiceError(
+        error,
+        'This password reset link is invalid or has expired. Please request a new reset email.'
+      );
+    }
+    if (data.session) {
+      return data.session;
+    }
+  }
+
+  const existing = await getSession();
+  if (existing) {
+    return existing;
+  }
+
+  throw new ServiceError(
+    'This password reset link is invalid or has expired. Please request a new reset email.',
+    { code: 'invalid_recovery_link' }
+  );
+}
+
+/** Updates the currently authenticated user's password after recovery verification. */
+export async function updateAccountPassword(newPassword: string): Promise<void> {
+  if (newPassword.length < 8) {
+    throw new ServiceError('Password must be at least 8 characters long.', {
+      code: 'weak_password',
+    });
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) {
+    throw toServiceError(error, 'Unable to update your password.');
   }
 }
 

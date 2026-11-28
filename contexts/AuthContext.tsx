@@ -14,6 +14,7 @@ import {
   getCurrentProfile,
   getSession,
   isAdminRole,
+  isRecoveryUrl,
   isStaffRole,
   login,
   logout,
@@ -35,6 +36,7 @@ export interface AuthContextValue {
   profile: Profile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isPasswordRecovery: boolean;
   isStaff: boolean;
   isAdmin: boolean;
   configError: string | null;
@@ -44,6 +46,8 @@ export interface AuthContextValue {
   deleteAccount: (confirmation: string) => Promise<DeleteAccountResponse>;
   refreshProfile: () => Promise<Profile | null>;
   updateProfile: (updates: ProfileUpdate) => Promise<Profile>;
+  markPasswordRecovery: () => void;
+  clearPasswordRecovery: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -59,6 +63,7 @@ export function useAuth(): AuthContextValue {
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(() => isRecoveryUrl());
   const [isLoading, setIsLoading] = useState<boolean>(isSupabaseConfigured);
   const [configError] = useState<string | null>(
     isSupabaseConfigured
@@ -114,8 +119,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
     })();
 
-    const unsubscribe = onAuthStateChange((_event, nextSession) => {
+    const unsubscribe = onAuthStateChange((event, nextSession) => {
       if (!isActive) return;
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+      } else if (event === 'SIGNED_OUT') {
+        setIsPasswordRecovery(false);
+      }
       void loadSessionAndProfile(nextSession);
     });
 
@@ -143,6 +153,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const signOut = useCallback(async (): Promise<void> => {
     await logout();
     await cancelAllDocuDashNotifications().catch(() => {});
+    setIsPasswordRecovery(false);
     setSession(null);
     setProfile(null);
   }, []);
@@ -151,6 +162,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     async (confirmation: string): Promise<DeleteAccountResponse> => {
       const result = await deleteAccountService(confirmation);
       await cancelAllDocuDashNotifications().catch(() => {});
+      setIsPasswordRecovery(false);
       setSession(null);
       setProfile(null);
       return result;
@@ -178,6 +190,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return updated;
   }, []);
 
+  const markPasswordRecovery = useCallback(() => {
+    setIsPasswordRecovery(true);
+  }, []);
+
+  const clearPasswordRecovery = useCallback(() => {
+    setIsPasswordRecovery(false);
+  }, []);
+
   const user = session?.user ?? null;
   const isAuthenticated = Boolean(session && user && profile);
   const isStaff = isStaffRole(profile?.role);
@@ -191,6 +211,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         profile,
         isLoading,
         isAuthenticated,
+        isPasswordRecovery,
         isStaff,
         isAdmin,
         configError,
@@ -200,6 +221,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         deleteAccount,
         refreshProfile,
         updateProfile,
+        markPasswordRecovery,
+        clearPasswordRecovery,
       }}
     >
       {children}

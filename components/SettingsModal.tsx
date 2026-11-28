@@ -5,8 +5,10 @@ import { Linking, Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import type { ThemePreference } from '@/constants/theme';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { getPermissionEnableSteps } from '@/services/permissionService';
 
 import { Button } from './Button';
+import { PermissionsPromptModal } from './PermissionsPromptModal';
 import { PrivacyPolicyModal } from './PrivacyPolicyModal';
 import { TermsModal } from './TermsModal';
 
@@ -44,8 +46,10 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
   } = useNotifications();
   const [termsVisible, setTermsVisible] = useState(false);
   const [privacyVisible, setPrivacyVisible] = useState(false);
+  const [permissionsVisible, setPermissionsVisible] = useState(false);
 
   const notificationsActive = isSupported && enabled && permissionStatus === 'granted';
+  const notifGuide = getPermissionEnableSteps('notifications');
 
   async function handleToggleNotifications() {
     if (notificationsActive) {
@@ -183,14 +187,33 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
                         </View>
 
                         {permissionStatus === 'denied' ? (
-                          <Button
-                            label="Open Device Settings"
-                            size="sm"
-                            variant="outline"
-                            icon="open-in-new"
-                            onPress={() => void Linking.openSettings()}
-                            fullWidth
-                          />
+                          <View className="gap-2">
+                            {notifGuide.steps.length > 0 ? (
+                              <View className="gap-1 rounded-lg bg-surface p-2.5">
+                                <Text className="text-[11px] font-bold text-ink">
+                                  {notifGuide.heading}
+                                </Text>
+                                {notifGuide.steps.map((step, index) => (
+                                  <Text key={step} className="text-[11px] leading-4 text-ink-muted">
+                                    {index + 1}. {step}
+                                  </Text>
+                                ))}
+                                {notifGuide.note ? (
+                                  <Text className="mt-1 text-[10px] leading-4 text-ink-subtle">
+                                    {notifGuide.note}
+                                  </Text>
+                                ) : null}
+                              </View>
+                            ) : null}
+                            <Button
+                              label="Open Device Settings"
+                              size="sm"
+                              variant="outline"
+                              icon="open-in-new"
+                              onPress={() => void Linking.openSettings()}
+                              fullWidth
+                            />
+                          </View>
                         ) : (
                           <Button
                             label={notificationsActive ? 'Pause Device Alerts' : 'Enable Device Alerts'}
@@ -218,6 +241,28 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
                       </View>
                     )}
                   </View>
+
+                  {isSupported ? (
+                    <Pressable
+                      onPress={() => setPermissionsVisible(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Open device permissions and instructions"
+                      className="flex-row items-center justify-between rounded-xl border border-border bg-surface-muted px-4 py-3"
+                    >
+                      <View className="flex-row items-center gap-3">
+                        <MaterialIcons name="verified-user" size={18} color={colors.primary} />
+                        <View>
+                          <Text className="text-sm font-semibold text-ink">
+                            Device Permissions &amp; Guide
+                          </Text>
+                          <Text className="text-[11px] text-ink-subtle">
+                            Prompt alerts, camera access &amp; setup steps
+                          </Text>
+                        </View>
+                      </View>
+                      <MaterialIcons name="chevron-right" size={20} color={colors.inkSubtle} />
+                    </Pressable>
+                  ) : null}
                 </View>
 
                 {/* Legal & Privacy */}
@@ -281,6 +326,11 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
         </View>
       </Modal>
 
+      <PermissionsPromptModal
+        visible={permissionsVisible}
+        onClose={() => setPermissionsVisible(false)}
+        includeCamera
+      />
       <PrivacyPolicyModal visible={privacyVisible} onClose={() => setPrivacyVisible(false)} />
       <TermsModal visible={termsVisible} onClose={() => setTermsVisible(false)} />
     </>

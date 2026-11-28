@@ -1,11 +1,12 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useRef } from 'react';
-import { Text, View } from 'react-native';
+import { Linking, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Banner } from '@/components/StateView';
 import { useTheme } from '@/contexts/ThemeContext';
+import { getPermissionEnableSteps } from '@/services/permissionService';
 
 export interface QrScannerViewProps {
   /** Whether the camera preview and QR decoding are actively running. */
@@ -78,6 +79,9 @@ export function QrScannerView({
   }
 
   if (!permission.granted) {
+    const isBlocked = !permission.canAskAgain;
+    const cameraGuide = getPermissionEnableSteps('camera');
+
     return (
       <View className="gap-3">
         <Banner
@@ -85,13 +89,38 @@ export function QrScannerView({
           title="Camera permission required"
           message="Grant camera access so DocuDash can read QR pickup passes at the counter."
         />
-        <View className="flex-row gap-2">
-          <Button
-            label="Grant Camera Access"
-            icon="videocam"
-            size="sm"
-            onPress={() => void requestPermission()}
-          />
+
+        {isBlocked && cameraGuide.steps.length > 0 ? (
+          <View className="gap-1.5 rounded-lg border border-border bg-surface-muted p-3.5">
+            <Text className="text-xs font-bold text-ink">{cameraGuide.heading}</Text>
+            {cameraGuide.steps.map((step, index) => (
+              <Text key={step} className="text-xs leading-4 text-ink-muted">
+                {index + 1}. {step}
+              </Text>
+            ))}
+          </View>
+        ) : (
+          <Text className="text-xs text-ink-subtle">
+            If Android or iOS does not show a prompt, enable Camera in your device Settings app.
+          </Text>
+        )}
+
+        <View className="flex-row flex-wrap gap-2">
+          {isBlocked ? (
+            <Button
+              label="Open Device Settings"
+              icon="open-in-new"
+              size="sm"
+              onPress={() => void Linking.openSettings()}
+            />
+          ) : (
+            <Button
+              label="Grant Camera Access"
+              icon="videocam"
+              size="sm"
+              onPress={() => void requestPermission()}
+            />
+          )}
           <Button
             label="Cancel"
             variant="outline"
