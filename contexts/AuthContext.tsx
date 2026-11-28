@@ -14,6 +14,7 @@ import {
   getCurrentProfile,
   getSession,
   isAdminRole,
+  isAppManagerEmail,
   isRecoveryUrl,
   isStaffRole,
   login,
@@ -37,6 +38,7 @@ export interface AuthContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   isPasswordRecovery: boolean;
+  isAppManager: boolean;
   isStaff: boolean;
   isAdmin: boolean;
   configError: string | null;
@@ -199,9 +201,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   const user = session?.user ?? null;
-  const isAuthenticated = Boolean(session && user && profile);
-  const isStaff = isStaffRole(profile?.role);
-  const isAdmin = isAdminRole(profile?.role);
+  const isAppManager = Boolean(session && user && isAppManagerEmail(user.email));
+  const isAuthenticated = Boolean(session && user && (profile || isAppManager));
+  const isStaff = !isAppManager && isStaffRole(profile?.role);
+  const isAdmin = !isAppManager && isAdminRole(profile?.role);
 
   return (
     <AuthContext.Provider
@@ -212,6 +215,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         isLoading,
         isAuthenticated,
         isPasswordRecovery,
+        isAppManager,
         isStaff,
         isAdmin,
         configError,

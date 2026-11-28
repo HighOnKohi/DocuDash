@@ -43,10 +43,16 @@ export interface LoginInput {
 export interface LoginResult {
   user: User;
   session: Session;
-  profile: Profile;
+  profile: Profile | null;
 }
 
 const CONTACT_NUMBER_PATTERN = /^\+?[0-9][0-9 -]{6,18}[0-9]$/;
+
+export const APP_MANAGER_EMAIL = 'docudash.app@gmail.com';
+
+export function isAppManagerEmail(email?: string | null): boolean {
+  return Boolean(email && email.trim().toLowerCase() === APP_MANAGER_EMAIL);
+}
 
 export function isStaffRole(role?: UserRole | null): boolean {
   return role === 'staff' || role === 'admin';
@@ -162,7 +168,7 @@ export async function login(input: LoginInput): Promise<LoginResult> {
   }
 
   const profile = await getCurrentProfile(data.user.id);
-  if (!profile) {
+  if (!profile && !isAppManagerEmail(data.user.email)) {
     throw new ServiceError(
       'Account profile was not found. Please contact the barangay office for assistance.',
       { code: 'profile_not_found' }

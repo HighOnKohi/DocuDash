@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandMark } from '@/components/BrandMark';
 import { Button } from '@/components/Button';
+import { NotificationBellButton } from '@/components/NotificationInboxModal';
 import { RequestCard } from '@/components/RequestCard';
 import { SettingsButton } from '@/components/SettingsModal';
 import { Banner, EmptyState, LoadingState } from '@/components/StateView';
@@ -146,6 +147,7 @@ export default function ResidentDashboardScreen() {
             </Text>
           </View>
           <View className="flex-row items-center gap-2">
+            <NotificationBellButton />
             <SettingsButton compact />
             <Button
               label="New Request"

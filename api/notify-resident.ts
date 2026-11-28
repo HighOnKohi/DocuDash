@@ -10,6 +10,7 @@ import {
   requireMethod,
   sendJson,
 } from './_lib/http';
+import { sendExpoPushNotifications } from './_lib/expoPush';
 import { sendStatusNotificationEmail, type StatusEmailVariables } from './_lib/resend';
 import { isSmtpConfigured, sendStatusNotificationViaSmtp } from './_lib/smtp';
 import { getSupabaseAdmin } from './_lib/supabaseAdmin';
@@ -35,7 +36,12 @@ function buildTemplatePayload(params: {
   slotText: string | null;
   rejectionReason: string | null;
   customMessage?: string;
-}): { subject: string; variables: StatusEmailVariables } {
+}): {
+  subject: string;
+  pushTitle: string;
+  pushBody: string;
+  variables: StatusEmailVariables;
+} {
   const { event, residentName, documentName, slotText, rejectionReason, customMessage } = params;
   const pickupSlot = slotText ?? 'Not yet scheduled';
   const officeNote = customMessage
@@ -47,6 +53,8 @@ function buildTemplatePayload(params: {
       const headline = `Your ${documentName} request is under review`;
       return {
         subject: `DocuDash: ${headline}`,
+        pushTitle: 'Request Under Review',
+        pushBody: `Barangay staff are now reviewing your ${documentName} request.`,
         variables: {
           RESIDENT_NAME: residentName,
           HEADLINE: headline,
@@ -62,6 +70,8 @@ function buildTemplatePayload(params: {
       const headline = `Your ${documentName} is ready for pickup`;
       return {
         subject: `DocuDash: ${headline}`,
+        pushTitle: 'Ready for Pickup',
+        pushBody: `Your ${documentName} is approved and ready! Open DocuDash to view your QR pickup pass.`,
         variables: {
           RESIDENT_NAME: residentName,
           HEADLINE: headline,
@@ -78,6 +88,10 @@ function buildTemplatePayload(params: {
       const reasonText = rejectionReason ? ` Reason: ${rejectionReason}` : '';
       return {
         subject: `DocuDash: ${headline}`,
+        pushTitle: 'Request Needs Attention',
+        pushBody: rejectionReason
+          ? `${documentName}: ${rejectionReason}`
+          : `Your ${documentName} request was not approved. Open DocuDash for details.`,
         variables: {
           RESIDENT_NAME: residentName,
           HEADLINE: headline,
@@ -93,6 +107,8 @@ function buildTemplatePayload(params: {
       const headline = `${documentName} pickup confirmed`;
       return {
         subject: `DocuDash: ${headline}`,
+        pushTitle: 'Document Released',
+        pushBody: `Your ${documentName} pickup has been verified and completed.`,
         variables: {
           RESIDENT_NAME: residentName,
           HEADLINE: headline,
@@ -108,6 +124,10 @@ function buildTemplatePayload(params: {
       const headline = `Pickup reminder for your ${documentName}`;
       return {
         subject: `DocuDash: ${headline}`,
+        pushTitle: 'Upcoming Barangay Pickup',
+        pushBody: slotText
+          ? `Reminder: Your ${documentName} pickup window (${slotText}) is coming up.`
+          : `Reminder: Please check your ${documentName} pickup details in DocuDash.`,
         variables: {
           RESIDENT_NAME: residentName,
           HEADLINE: headline,
@@ -240,9 +260,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         : await sendStatusNotificationEmail(emailParams);
     }
 
-    const deliveredVia: NotifyResidentResponse['deliveredVia'] = emailResult.sent
-      ? 'email'
-      : 'in_app_logged';
+    // Attempt Expo Push delivery to any registered resident device tokens (gracefully
+    // skipped if migration 006 is not applied yet or FCM/APNs isn't configured).
+    let pushSentCount = 0;
+    try {
+      const { data: tokenRows, error: tokenLookupError } = await supabaseAdmin
+        .from('user_push_tokens')
+        .select('expo_push_token')
+        .eq('user_id', requestRow.resident_id);
+
+      if (!tokenLookupError && tokenRows && tokenRows.length > 0) {
+        const tokens = tokenRows.map((row) => row.expo_push_token);
+        const pushResult = await sendExpoPushNotifications({
+          tokens,
+          title: templatePayload.pushTitle,
+          body: templatePayload.pushBody,
+          data: {
+            requestId: requestRow.id,
+            event: body.event,
+            status: requestRow.status,
+          },
+        });
+        pushSentCount = pushResult.sentCount;
+
+        if (pushResult.invalidTokens.length > 0) {
+          await supabaseAdmin
+            .from('user_push_tokens')
+            .delete()
+            .in('expo_push_token', pushResult.invalidTokens);
+        }
+      }
+    } catch {
+      pushSentCount = 0;
+    }
+
+    const deliveredVia: NotifyResidentResponse['deliveredVia'] =
+      emailResult.sent && pushSentCount > 0
+        ? 'email_and_push'
+        : emailResult.sent
+          ? 'email'
+          : pushSentCount > 0
+            ? 'push'
+            : 'in_app_logged';
 
     // Audit without storing PII (email/phone) in metadata (RA 10173 data minimization).
     const { error: auditError } = await supabaseAdmin.from('audit_logs').insert({
@@ -253,6 +312,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         event: body.event,
         channel: deliveredVia,
         recipient_id: requestRow.resident_id,
+        push_sent_count: pushSentCount,
         has_custom_message: Boolean(customMessage),
         ...(emailResult.emailId ? { email_id: emailResult.emailId } : {}),
       },
@@ -268,6 +328,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       event: body.event,
       deliveredVia,
       ...(emailResult.emailId ? { emailId: emailResult.emailId } : {}),
+      ...(pushSentCount > 0 ? { pushSentCount } : {}),
       auditLogged: true,
     };
 

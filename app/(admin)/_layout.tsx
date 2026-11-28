@@ -65,12 +65,16 @@ export default function AdminLayout() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
-  const { isAuthenticated, isStaff, profile, user, signOut } = useAuth();
+  const { isAuthenticated, isAppManager, isStaff, profile, user, signOut } = useAuth();
   const { colors } = useTheme();
   const [signingOut, setSigningOut] = useState(false);
 
-  if (!isAuthenticated || !isStaff) {
-    return <Redirect href={isAuthenticated ? '/(resident)/(tabs)' : '/(auth)'} />;
+  if (!isAuthenticated || !isStaff || isAppManager) {
+    return (
+      <Redirect
+        href={isAppManager ? '/(manager)' : isAuthenticated ? '/(resident)/(tabs)' : '/(auth)'}
+      />
+    );
   }
 
   const isDesktop = width >= DESKTOP_BREAKPOINT;

@@ -124,6 +124,8 @@ export function formatAuditAction(action: string): string {
       return 'Expired requirements purged (RA 10173)';
     case 'notification_dispatched':
       return 'Resident notification dispatched';
+    case 'account_deleted':
+      return 'Account erased (RA 10173)';
     case 'payment_submitted':
       return 'GCash payment proof submitted';
     case 'payment_verified':
@@ -132,6 +134,18 @@ export function formatAuditAction(action: string): string {
       return 'Payment proof rejected';
     case 'barangay_updated':
       return 'Barangay office details updated';
+    case 'manager_role_updated':
+      return 'App Manager updated account role';
+    case 'manager_barangay_assigned':
+      return 'App Manager updated barangay assignment';
+    case 'manager_admin_request_updated':
+      return 'App Manager reviewed barangay admin request';
+    case 'manager_barangay_toggled':
+      return 'App Manager toggled barangay active status';
+    case 'manager_document_type_updated':
+      return 'App Manager updated document type config';
+    case 'manager_user_deleted':
+      return 'App Manager erased user account';
     default:
       return action.replace(/_/g, ' ');
   }

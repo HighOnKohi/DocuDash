@@ -41,7 +41,9 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
   const { preference, setPreference, colors, themeVars } = useTheme();
   const {
     isSupported,
+    webNotificationsSupported,
     permissionStatus,
+    webPermissionStatus,
     enabled,
     busy,
     enableNotifications,
@@ -51,7 +53,9 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
   const [privacyVisible, setPrivacyVisible] = useState(false);
   const [permissionsVisible, setPermissionsVisible] = useState(false);
 
-  const notificationsActive = isSupported && enabled && permissionStatus === 'granted';
+  const notificationsActive = isSupported
+    ? enabled && permissionStatus === 'granted'
+    : webNotificationsSupported && enabled && webPermissionStatus === 'granted';
   const notifGuide = getPermissionEnableSteps('notifications');
 
   async function handleToggleNotifications() {
@@ -220,6 +224,76 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
                         ) : (
                           <Button
                             label={notificationsActive ? 'Pause Device Alerts' : 'Enable Device Alerts'}
+                            size="sm"
+                            variant={notificationsActive ? 'outline' : 'primary'}
+                            icon={notificationsActive ? 'notifications-off' : 'notifications'}
+                            loading={busy}
+                            onPress={() => void handleToggleNotifications()}
+                            fullWidth
+                          />
+                        )}
+                      </>
+                    ) : webNotificationsSupported ? (
+                      <>
+                        <View className="flex-row items-center justify-between gap-2">
+                          <View className="flex-1 flex-row items-center gap-2.5">
+                            <MaterialIcons
+                              name={
+                                notificationsActive
+                                  ? 'notifications-active'
+                                  : 'notifications-none'
+                              }
+                              size={18}
+                              color={notificationsActive ? colors.primary : colors.inkSubtle}
+                            />
+                            <View className="flex-1">
+                              <Text className="text-sm font-semibold text-ink">
+                                In-App &amp; Browser Alerts
+                              </Text>
+                              <Text className="text-[11px] leading-4 text-ink-subtle">
+                                Desktop alerts + live in-app banner when documents are ready
+                              </Text>
+                            </View>
+                          </View>
+                          <View
+                            className={`rounded-full px-2.5 py-0.5 ${
+                              notificationsActive
+                                ? 'bg-emerald-100 dark:bg-emerald-950'
+                                : webPermissionStatus === 'denied'
+                                  ? 'bg-red-100 dark:bg-red-950'
+                                  : 'bg-surface'
+                            }`}
+                          >
+                            <Text
+                              className={`text-[11px] font-bold ${
+                                notificationsActive
+                                  ? 'text-emerald-800 dark:text-emerald-300'
+                                  : webPermissionStatus === 'denied'
+                                    ? 'text-red-700 dark:text-red-300'
+                                    : 'text-ink-muted'
+                              }`}
+                            >
+                              {notificationsActive
+                                ? 'Active'
+                                : webPermissionStatus === 'denied'
+                                  ? 'Blocked'
+                                  : 'In-App Only'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {webPermissionStatus === 'denied' ? (
+                          <Text className="text-[11px] leading-4 text-ink-subtle">
+                            Browser notifications are blocked in site settings, so DocuDash will show
+                            in-app alert banners and the dashboard Alerts bell when open.
+                          </Text>
+                        ) : (
+                          <Button
+                            label={
+                              notificationsActive
+                                ? 'Pause Browser Alerts'
+                                : 'Enable Browser Alerts'
+                            }
                             size="sm"
                             variant={notificationsActive ? 'outline' : 'primary'}
                             icon={notificationsActive ? 'notifications-off' : 'notifications'}

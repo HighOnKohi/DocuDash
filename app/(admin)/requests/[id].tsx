@@ -332,9 +332,16 @@ export default function AdminRequestReviewScreen() {
     if (!sendNotification) return '';
     try {
       const result = await notifyResident({ requestId, event });
-      return result.deliveredVia === 'email'
-        ? ' Resident notified by email.'
-        : ' Resident alert logged (in-app Realtime active).';
+      if (result.deliveredVia === 'email_and_push') {
+        return ' Resident notified via email & app push.';
+      }
+      if (result.deliveredVia === 'push') {
+        return ' Resident notified via app push.';
+      }
+      if (result.deliveredVia === 'email') {
+        return ' Resident notified by email (in-app alert will also show on device).';
+      }
+      return ' Resident alert logged (in-app & device sync active).';
     } catch (error) {
       return ` Status saved, but notification failed: ${toServiceError(error).message}`;
     }
@@ -428,9 +435,13 @@ export default function AdminRequestReviewScreen() {
       setFeedback({
         tone: 'success',
         message:
-          result.deliveredVia === 'email'
-            ? 'Pickup reminder email sent to the resident.'
-            : 'Pickup reminder recorded in the audit trail.',
+          result.deliveredVia === 'email_and_push'
+            ? 'Pickup reminder sent via email & app push.'
+            : result.deliveredVia === 'push'
+              ? 'Pickup reminder sent via app push.'
+              : result.deliveredVia === 'email'
+                ? 'Pickup reminder email sent to the resident.'
+                : 'Pickup reminder recorded in the audit trail.',
       });
     } catch (error) {
       setFeedback({

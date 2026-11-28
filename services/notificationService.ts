@@ -1,13 +1,22 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import type { RequestStatus } from '@/types/database';
 
-export const NOTIFICATION_CHANNEL_ID = 'docudash-updates';
+import { getSupabaseClient } from './supabase';
+
+export const NOTIFICATION_CHANNEL_ID = 'docudash-updates-v2';
+const LEGACY_NOTIFICATION_CHANNEL_ID = 'docudash-updates';
 const NOTIFICATIONS_ENABLED_KEY = 'docudash.notifications.enabled';
+const PUSH_TOKEN_STORAGE_KEY = 'docudash.notifications.expo_push_token';
+const STATUS_SNAPSHOT_PREFIX = 'docudash.notifications.statuses.';
+const INBOX_STORAGE_PREFIX = 'docudash.notifications.inbox.';
 const PICKUP_REMINDER_PREFIX = 'docudash-pickup-';
 const BRAND_PRIMARY_HEX = '#01227F';
+const MAX_INBOX_ITEMS = 30;
 
 export type NotificationPermissionStatus =
   | 'granted'
@@ -20,15 +29,99 @@ export interface NotificationPermissionDetails {
   canAskAgain: boolean;
 }
 
+export interface StatusNotificationInput {
+  requestId: string;
+  documentName: string;
+  status: Exclude<RequestStatus, 'pending'>;
+  rejectionReason?: string | null;
+}
+
+export interface InAppNotificationItem {
+  id: string;
+  requestId: string;
+  documentName: string;
+  status: Exclude<RequestStatus, 'pending'>;
+  title: string;
+  body: string;
+  createdAt: string;
+  read: boolean;
+}
+
 let handlerConfigured = false;
 let channelReadyPromise: Promise<void> | null = null;
 
 /**
- * Local push notifications & scheduled pickup reminders are supported on native
- * Android and iOS builds. Web browsers rely on live in-app updates + email.
+ * Local & remote push notifications are supported on native Android/iOS builds.
+ * Web browsers use live in-app banners + optional Web Notification API alerts.
  */
 export function isNativeNotificationsSupported(): boolean {
   return Platform.OS === 'android' || Platform.OS === 'ios';
+}
+
+export function isWebNotificationsSupported(): boolean {
+  return (
+    Platform.OS === 'web' &&
+    typeof window !== 'undefined' &&
+    typeof window.Notification !== 'undefined'
+  );
+}
+
+export function getWebNotificationPermission(): NotificationPermissionStatus {
+  if (!isWebNotificationsSupported()) {
+    return 'unsupported';
+  }
+  switch (window.Notification.permission) {
+    case 'granted':
+      return 'granted';
+    case 'denied':
+      return 'denied';
+    default:
+      return 'undetermined';
+  }
+}
+
+export async function requestWebNotificationPermission(): Promise<NotificationPermissionStatus> {
+  if (!isWebNotificationsSupported()) {
+    return 'unsupported';
+  }
+  try {
+    const result = await window.Notification.requestPermission();
+    return result === 'granted' ? 'granted' : result === 'denied' ? 'denied' : 'undetermined';
+  } catch {
+    return getWebNotificationPermission();
+  }
+}
+
+/** Shared status copy used across native OS banners, web alerts, and in-app toasts. */
+export function buildStatusNotificationCopy(
+  input: StatusNotificationInput
+): { title: string; body: string } {
+  switch (input.status) {
+    case 'reviewing':
+      return {
+        title: 'Request Under Review',
+        body: `Barangay staff are now reviewing your ${input.documentName} request.`,
+      };
+    case 'ready':
+      return {
+        title: 'Ready for Pickup',
+        body: `Your ${input.documentName} is approved! Open DocuDash to view your QR pickup pass.`,
+      };
+    case 'completed':
+      return {
+        title: 'Document Released',
+        body: `Your ${input.documentName} pickup has been verified and completed.`,
+      };
+    case 'rejected': {
+      const trimmedReason = input.rejectionReason?.trim();
+      return {
+        title: 'Request Needs Attention',
+        body: trimmedReason
+          ? `${input.documentName}: ${trimmedReason}`
+          : `Your ${input.documentName} request was not approved. Tap to review details.`,
+      };
+    }
+  }
 }
 
 function mapPermissionResponse(
@@ -47,7 +140,8 @@ function mapPermissionResponse(
 }
 
 /**
- * Configures foreground notification presentation behavior once on native.
+ * Configures foreground notification presentation behavior once on native so
+ * status changes still show a heads-up alert even while DocuDash is open.
  */
 export function configureNotificationHandler(): void {
   if (!isNativeNotificationsSupported() || handlerConfigured) {
@@ -61,13 +155,14 @@ export function configureNotificationHandler(): void {
       shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
+      priority: Notifications.AndroidNotificationPriority.MAX,
     }),
   });
 }
 
 /**
- * Ensures the Android notification channel exists before prompting or
- * scheduling notifications (required on Android 8+ / 13+).
+ * Ensures the MAX-importance Android notification channel exists before prompting
+ * or scheduling notifications (required on Android 8+ / 13+ for heads-up alerts).
  */
 export async function ensureNotificationChannelAsync(): Promise<void> {
   if (Platform.OS !== 'android') {
@@ -75,19 +170,26 @@ export async function ensureNotificationChannelAsync(): Promise<void> {
   }
 
   if (!channelReadyPromise) {
-    channelReadyPromise = Notifications.setNotificationChannelAsync(NOTIFICATION_CHANNEL_ID, {
-      name: 'Request & Pickup Updates',
-      description:
-        'Alerts when your barangay document status changes or your pickup slot is approaching.',
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: BRAND_PRIMARY_HEX,
-    })
-      .then(() => undefined)
-      .catch((error) => {
-        channelReadyPromise = null;
-        throw error;
+    channelReadyPromise = (async () => {
+      await Notifications.deleteNotificationChannelAsync(LEGACY_NOTIFICATION_CHANNEL_ID).catch(
+        () => {}
+      );
+      await Notifications.setNotificationChannelAsync(NOTIFICATION_CHANNEL_ID, {
+        name: 'Request & Pickup Updates',
+        description:
+          'High-priority alerts when your barangay document is ready for pickup or approaching its slot.',
+        importance: Notifications.AndroidImportance.MAX,
+        sound: 'default',
+        enableVibrate: true,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: BRAND_PRIMARY_HEX,
+        showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
+    })().catch((error) => {
+      channelReadyPromise = null;
+      throw error;
+    });
   }
 
   await channelReadyPromise;
@@ -122,7 +224,7 @@ export async function requestNotificationPermissions(): Promise<NotificationPerm
 }
 
 export async function getNotificationsEnabledPreference(): Promise<boolean> {
-  if (!isNativeNotificationsSupported()) {
+  if (!isNativeNotificationsSupported() && !isWebNotificationsSupported()) {
     return false;
   }
 
@@ -136,27 +238,73 @@ export async function getNotificationsEnabledPreference(): Promise<boolean> {
 }
 
 export async function setNotificationsEnabledPreference(enabled: boolean): Promise<void> {
-  if (!isNativeNotificationsSupported()) {
+  if (!isNativeNotificationsSupported() && !isWebNotificationsSupported()) {
     return;
   }
 
   await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, enabled ? 'true' : 'false');
 }
 
+export async function loadKnownRequestStatuses(
+  userId: string
+): Promise<Record<string, RequestStatus> | null> {
+  try {
+    const raw = await AsyncStorage.getItem(`${STATUS_SNAPSHOT_PREFIX}${userId}`);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as Record<string, RequestStatus>;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveKnownRequestStatuses(
+  userId: string,
+  map: Record<string, RequestStatus>
+): Promise<void> {
+  try {
+    await AsyncStorage.setItem(`${STATUS_SNAPSHOT_PREFIX}${userId}`, JSON.stringify(map));
+  } catch {
+    // Non-fatal persistence failure.
+  }
+}
+
+export async function loadNotificationInbox(userId: string): Promise<InAppNotificationItem[]> {
+  try {
+    const raw = await AsyncStorage.getItem(`${INBOX_STORAGE_PREFIX}${userId}`);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.slice(0, MAX_INBOX_ITEMS) as InAppNotificationItem[];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveNotificationInbox(
+  userId: string,
+  items: InAppNotificationItem[]
+): Promise<void> {
+  try {
+    await AsyncStorage.setItem(
+      `${INBOX_STORAGE_PREFIX}${userId}`,
+      JSON.stringify(items.slice(0, MAX_INBOX_ITEMS))
+    );
+  } catch {
+    // Non-fatal persistence failure.
+  }
+}
+
 function getImmediateTrigger(): Notifications.NotificationTriggerInput {
   return Platform.OS === 'android' ? { channelId: NOTIFICATION_CHANNEL_ID } : null;
 }
 
-export interface StatusNotificationInput {
-  requestId: string;
-  documentName: string;
-  status: Exclude<RequestStatus, 'pending'>;
-  rejectionReason?: string | null;
-}
-
 /**
- * Presents a local notification banner when a resident's document request
- * transitions to a new status.
+ * Fires a native device notification immediately using MAX priority so Android
+ * displays a heads-up banner and iOS displays a banner + sound.
  */
 export async function presentStatusChangeNotification(
   input: StatusNotificationInput
@@ -171,43 +319,115 @@ export async function presentStatusChangeNotification(
   }
 
   await ensureNotificationChannelAsync();
-
-  let title = 'Document Request Update';
-  let body = `Your ${input.documentName} request status has been updated.`;
-
-  switch (input.status) {
-    case 'reviewing':
-      title = 'Request Under Review';
-      body = `Barangay staff are now reviewing your ${input.documentName} request.`;
-      break;
-    case 'ready':
-      title = 'Ready for Pickup';
-      body = `Your ${input.documentName} is approved! Open DocuDash to view your QR pickup pass.`;
-      break;
-    case 'completed':
-      title = 'Document Released';
-      body = `Your ${input.documentName} pickup has been verified and completed.`;
-      break;
-    case 'rejected': {
-      title = 'Request Needs Attention';
-      const trimmedReason = input.rejectionReason?.trim();
-      body = trimmedReason
-        ? `${input.documentName}: ${trimmedReason}`
-        : `Your ${input.documentName} request was not approved. Tap to review details.`;
-      break;
-    }
-  }
+  const { title, body } = buildStatusNotificationCopy(input);
 
   await Notifications.scheduleNotificationAsync({
+    identifier: `status-${input.requestId}-${input.status}`,
     content: {
       title,
       body,
       data: { requestId: input.requestId, status: input.status },
       color: BRAND_PRIMARY_HEX,
       sound: 'default',
+      priority: Notifications.AndroidNotificationPriority.MAX,
     },
     trigger: getImmediateTrigger(),
   });
+}
+
+/** Fires a browser/PWA desktop notification when Web Notification permission is granted. */
+export function presentWebStatusNotification(
+  input: StatusNotificationInput,
+  onOpenRequest?: (requestId: string) => void
+): void {
+  if (getWebNotificationPermission() !== 'granted') {
+    return;
+  }
+
+  try {
+    const { title, body } = buildStatusNotificationCopy(input);
+    const notif = new window.Notification(title, {
+      body,
+      icon: '/icons/icon-192.png',
+      tag: `${input.requestId}:${input.status}`,
+    });
+    notif.onclick = () => {
+      window.focus();
+      onOpenRequest?.(input.requestId);
+      notif.close();
+    };
+  } catch {
+    // Ignore browser notification restrictions inside unsupported embedded webviews.
+  }
+}
+
+/**
+ * Registers the current physical device's Expo Push Token in `user_push_tokens`
+ * so Vercel `POST /api/notify-resident` can send remote push notifications.
+ * Fails gracefully if FCM/APNs credentials are not configured on a sideloaded APK.
+ */
+export async function registerExpoPushTokenForUser(userId: string): Promise<string | null> {
+  if (!isNativeNotificationsSupported() || !Device.isDevice) {
+    return null;
+  }
+
+  const permission = await getNotificationPermissionStatus();
+  if (permission !== 'granted') {
+    return null;
+  }
+
+  await ensureNotificationChannelAsync();
+
+  const projectId =
+    Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+  if (!projectId) {
+    return null;
+  }
+
+  try {
+    const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId });
+    const expoPushToken = tokenResponse.data?.trim();
+    if (!expoPushToken) {
+      return null;
+    }
+
+    const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('user_push_tokens').upsert(
+      {
+        user_id: userId,
+        expo_push_token: expoPushToken,
+        platform,
+      },
+      { onConflict: 'expo_push_token' }
+    );
+
+    if (!error) {
+      await AsyncStorage.setItem(PUSH_TOKEN_STORAGE_KEY, expoPushToken).catch(() => {});
+    }
+
+    return expoPushToken;
+  } catch {
+    return null;
+  }
+}
+
+/** Removes any stored Expo Push Token for this device on sign-out or pause. */
+export async function unregisterExpoPushToken(): Promise<void> {
+  if (!isNativeNotificationsSupported()) {
+    return;
+  }
+
+  try {
+    const stored = await AsyncStorage.getItem(PUSH_TOKEN_STORAGE_KEY);
+    if (stored) {
+      const supabase = getSupabaseClient();
+      await supabase.from('user_push_tokens').delete().eq('expo_push_token', stored);
+      await AsyncStorage.removeItem(PUSH_TOKEN_STORAGE_KEY);
+    }
+  } catch {
+    // Best-effort cleanup only.
+  }
 }
 
 /**
@@ -300,6 +520,7 @@ export async function schedulePickupReminder(
       data: { requestId: input.requestId, kind: 'pickup_reminder' },
       color: BRAND_PRIMARY_HEX,
       sound: 'default',
+      priority: Notifications.AndroidNotificationPriority.MAX,
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -328,9 +549,25 @@ export async function cancelAllDocuDashNotifications(): Promise<void> {
 }
 
 /**
- * Triggers an immediate local alert on mobile to confirm notifications are active.
+ * Triggers an immediate local alert on mobile (or web notification when granted)
+ * to confirm notifications are active.
  */
 export async function sendTestNotification(): Promise<boolean> {
+  if (isWebNotificationsSupported()) {
+    if (getWebNotificationPermission() !== 'granted') {
+      return false;
+    }
+    try {
+      new window.Notification('DocuDash Alerts Active', {
+        body: 'You will receive Ready for Pickup alerts and document status updates.',
+        icon: '/icons/icon-192.png',
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   if (!isNativeNotificationsSupported()) {
     return false;
   }
@@ -345,9 +582,10 @@ export async function sendTestNotification(): Promise<boolean> {
   await Notifications.scheduleNotificationAsync({
     content: {
       title: 'DocuDash Alerts Active',
-      body: 'You will receive status updates and pickup reminders on this device.',
+      body: 'You will receive Ready for Pickup alerts and pickup reminders on this device.',
       color: BRAND_PRIMARY_HEX,
       sound: 'default',
+      priority: Notifications.AndroidNotificationPriority.MAX,
     },
     trigger: getImmediateTrigger(),
   });

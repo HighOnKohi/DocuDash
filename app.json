@@ -24,7 +24,8 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "web": {
@@ -74,8 +75,8 @@
           "icon": "./assets/images/android-icon-monochrome.png",
           "largeIcon": "./assets/images/logo.png",
           "color": "#01227F",
-          "defaultChannel": "docudash-updates",
-          "enableRemoteNotifications": false
+          "defaultChannel": "docudash-updates-v2",
+          "enableRemoteNotifications": true
         }
       ],
       "./plugins/withAndroidReleaseSigning"

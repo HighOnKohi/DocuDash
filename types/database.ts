@@ -40,7 +40,13 @@ export type AuditAction =
   | 'payment_submitted'
   | 'payment_verified'
   | 'payment_rejected'
-  | 'barangay_updated';
+  | 'barangay_updated'
+  | 'manager_role_updated'
+  | 'manager_barangay_assigned'
+  | 'manager_admin_request_updated'
+  | 'manager_barangay_toggled'
+  | 'manager_document_type_updated'
+  | 'manager_user_deleted';
 
 export interface Database {
   public: {
@@ -419,6 +425,33 @@ export interface Database {
         };
         Relationships: [];
       };
+      user_push_tokens: {
+        Row: {
+          id: string;
+          user_id: string;
+          expo_push_token: string;
+          platform: 'android' | 'ios';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          expo_push_token: string;
+          platform: 'android' | 'ios';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          expo_push_token?: string;
+          platform?: 'android' | 'ios';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -537,6 +570,7 @@ export type BarangayUpdate = Pick<
 export type DocumentRequest = Database['public']['Tables']['requests']['Row'];
 export type RequestAttachment = Database['public']['Tables']['request_attachments']['Row'];
 export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];
+export type UserPushToken = Database['public']['Tables']['user_push_tokens']['Row'];
 
 /** Hydrated request row returned by list/detail queries with joined relations. */
 export interface RequestWithDetails extends DocumentRequest {
@@ -569,8 +603,9 @@ export interface NotifyResidentResponse {
   ok: true;
   requestId: string;
   event: NotifyResidentPayload['event'];
-  deliveredVia: 'email' | 'in_app_logged';
+  deliveredVia: 'email_and_push' | 'email' | 'push' | 'in_app_logged';
   emailId?: string;
+  pushSentCount?: number;
   auditLogged: true;
 }
 
@@ -591,7 +626,7 @@ export interface PurgeAttachmentsResponse {
   affectedRequestCount: number;
   hasMore: boolean;
   auditLogged: boolean;
-  triggeredBy: 'cron_secret' | 'admin';
+  triggeredBy: 'cron_secret' | 'admin' | 'app_manager';
 }
 
 /** Request payload accepted by Vercel `POST /api/delete-account`. */
@@ -629,6 +664,112 @@ export interface BarangayAdminRequestResponse {
   requestId: string | null;
   emailedTo: string;
   deliveredVia: 'email' | 'recorded_only';
+}
+
+export type BarangayAdminRequestRow =
+  Database['public']['Tables']['barangay_admin_requests']['Row'];
+
+/** Privacy-minimized user record visible to the App Manager (no address/phone/IDs). */
+export interface ManagerUserRecord {
+  id: string;
+  fullName: string;
+  email: string | null;
+  emailConfirmed: boolean;
+  role: UserRole;
+  barangayId: string | null;
+  barangayName: string | null;
+  cityMunicipality: string | null;
+  createdAt: string;
+  privacyConsentAt: string | null;
+  isSelf: boolean;
+}
+
+/** Privacy-minimized barangay record visible to the App Manager (no private financial numbers). */
+export interface ManagerBarangaySummary {
+  id: string;
+  psgcCode: string | null;
+  name: string;
+  cityMunicipality: string;
+  province: string;
+  region: string;
+  hallAddress: string;
+  googleMapsUrl: string | null;
+  isActive: boolean;
+  hasGcashQr: boolean;
+  gcashAccountName: string | null;
+  createdAt: string;
+}
+
+export interface ManagerOverviewMetrics {
+  totalUsers: number;
+  residentCount: number;
+  staffCount: number;
+  adminCount: number;
+  totalBarangays: number;
+  activeBarangays: number;
+  pendingAdminRequests: number;
+  requestCounts: {
+    total: number;
+    pending: number;
+    reviewing: number;
+    ready: number;
+    completed: number;
+    rejected: number;
+  };
+}
+
+export interface ManagerAuditEntry {
+  id: number;
+  action: string;
+  createdAt: string;
+  hasActor: boolean;
+  metadata: Record<string, Json | undefined>;
+}
+
+/** Response returned by Vercel `GET /api/app-manager`. */
+export interface AppManagerDashboardResponse {
+  ok: true;
+  managerEmail: string;
+  generatedAt: string;
+  metrics: ManagerOverviewMetrics;
+  users: ManagerUserRecord[];
+  adminRequests: BarangayAdminRequestRow[];
+  barangays: ManagerBarangaySummary[];
+  documentTypes: DocumentType[];
+  auditLogs: ManagerAuditEntry[];
+}
+
+/** Discriminated union of actions accepted by Vercel `POST /api/app-manager`. */
+export type AppManagerActionPayload =
+  | { action: 'update_user_role'; userId: string; role: UserRole }
+  | { action: 'assign_user_barangay'; userId: string; barangayId: string | null }
+  | { action: 'delete_user'; userId: string; confirmation: 'DELETE' }
+  | {
+      action: 'review_admin_request';
+      requestId: string;
+      decision: 'approved' | 'rejected';
+      promoteApplicant?: boolean;
+      notes?: string;
+    }
+  | { action: 'toggle_barangay'; barangayId: string; isActive: boolean }
+  | {
+      action: 'update_document_type';
+      documentTypeId: string;
+      fee: number;
+      isActive: boolean;
+      description?: string;
+    }
+  | { action: 'run_retention_purge'; dryRun?: boolean; retentionDays?: number };
+
+/** Response returned by Vercel `POST /api/app-manager`. */
+export interface AppManagerActionResponse {
+  ok: true;
+  action: AppManagerActionPayload['action'];
+  message: string;
+  promotedUser?: boolean;
+  purgeResult?: PurgeAttachmentsResponse;
+  deletedRequestsCount?: number;
+  deletedAttachmentsCount?: number;
 }
 
 /** Standard error response returned by Vercel `/api/*` endpoints. */

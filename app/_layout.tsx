@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 
 import { BrandMark } from '@/components/BrandMark';
+import { InAppNotificationBanner } from '@/components/InAppNotificationBanner';
 import { PermissionsPromptModal } from '@/components/PermissionsPromptModal';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
@@ -48,13 +49,13 @@ function SplashScreenController() {
  * permissions (Notifications, and Camera for staff) have not been granted yet.
  */
 function PermissionsPromptController() {
-  const { user, isAuthenticated, isPasswordRecovery, isStaff, isLoading } = useAuth();
+  const { user, isAuthenticated, isPasswordRecovery, isAppManager, isStaff, isLoading } = useAuth();
   const [promptVisible, setPromptVisible] = useState(false);
   const promptedUserRef = useRef<string | null>(null);
   const userId = user?.id ?? null;
 
   useEffect(() => {
-    if (!isNativePermissionsSupported() || isLoading || isPasswordRecovery) {
+    if (!isNativePermissionsSupported() || isLoading || isPasswordRecovery || isAppManager) {
       return;
     }
 
@@ -97,9 +98,9 @@ function PermissionsPromptController() {
     return () => {
       active = false;
     };
-  }, [isAuthenticated, isLoading, isPasswordRecovery, isStaff, userId]);
+  }, [isAuthenticated, isLoading, isPasswordRecovery, isAppManager, isStaff, userId]);
 
-  if (!isNativePermissionsSupported() || !isAuthenticated) {
+  if (!isNativePermissionsSupported() || !isAuthenticated || isAppManager) {
     return null;
   }
 
@@ -118,7 +119,7 @@ function PermissionsPromptController() {
 }
 
 function RootNavigator() {
-  const { isAuthenticated, isPasswordRecovery, isStaff, isLoading } = useAuth();
+  const { isAuthenticated, isPasswordRecovery, isAppManager, isStaff, isLoading } = useAuth();
   const { colors } = useTheme();
 
   if (isLoading) {
@@ -131,6 +132,12 @@ function RootNavigator() {
     );
   }
 
+  const authenticatedHome = isAppManager
+    ? '/(manager)'
+    : isStaff
+      ? '/(admin)'
+      : '/(resident)/(tabs)';
+
   return (
     <Stack
       screenOptions={{
@@ -142,22 +149,33 @@ function RootNavigator() {
 
       <Stack.Protected
         guard={!isAuthenticated && !isPasswordRecovery}
-        redirectTo={isPasswordRecovery ? '/reset-password' : isStaff ? '/(admin)' : '/(resident)/(tabs)'}
+        redirectTo={isPasswordRecovery ? '/reset-password' : authenticatedHome}
       >
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
 
       <Stack.Protected
-        guard={isAuthenticated && !isStaff && !isPasswordRecovery}
-        redirectTo={isPasswordRecovery ? '/reset-password' : isAuthenticated ? '/(admin)' : '/(auth)'}
+        guard={isAuthenticated && isAppManager && !isPasswordRecovery}
+        redirectTo={
+          isPasswordRecovery ? '/reset-password' : isAuthenticated ? authenticatedHome : '/(auth)'
+        }
+      >
+        <Stack.Screen name="(manager)" />
+      </Stack.Protected>
+
+      <Stack.Protected
+        guard={isAuthenticated && !isAppManager && !isStaff && !isPasswordRecovery}
+        redirectTo={
+          isPasswordRecovery ? '/reset-password' : isAuthenticated ? authenticatedHome : '/(auth)'
+        }
       >
         <Stack.Screen name="(resident)" />
       </Stack.Protected>
 
       <Stack.Protected
-        guard={isAuthenticated && isStaff && !isPasswordRecovery}
+        guard={isAuthenticated && !isAppManager && isStaff && !isPasswordRecovery}
         redirectTo={
-          isPasswordRecovery ? '/reset-password' : isAuthenticated ? '/(resident)/(tabs)' : '/(auth)'
+          isPasswordRecovery ? '/reset-password' : isAuthenticated ? authenticatedHome : '/(auth)'
         }
       >
         <Stack.Screen name="(admin)" />
@@ -195,6 +213,7 @@ function RootThemedShell() {
             <SplashScreenController />
             <PermissionsPromptController />
             <RootNavigator />
+            <InAppNotificationBanner />
           </NotificationProvider>
         </AuthProvider>
       </View>

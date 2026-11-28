@@ -25,6 +25,16 @@ export type MaintenanceCaller =
 
 const MIN_CRON_SECRET_LENGTH = 16;
 
+export const DEFAULT_APP_MANAGER_EMAIL = 'docudash.app@gmail.com';
+
+export function getConfiguredAppManagerEmail(): string {
+  return process.env.APP_MANAGER_EMAIL?.trim().toLowerCase() || DEFAULT_APP_MANAGER_EMAIL;
+}
+
+export function isConfiguredAppManagerEmail(email?: string | null): boolean {
+  return Boolean(email && email.trim().toLowerCase() === getConfiguredAppManagerEmail());
+}
+
 function extractBearerToken(req: VercelRequest): string {
   const rawHeader = req.headers.authorization;
   const header = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
@@ -135,4 +145,57 @@ export async function requireCronOrAdmin(req: VercelRequest): Promise<Maintenanc
   }
 
   return { kind: 'admin', actorId: staff.userId, staff };
+}
+
+/**
+ * Verifies the caller's Supabase JWT and enforces exclusive App Manager access:
+ * only the verified email matching `APP_MANAGER_EMAIL` (defaults to
+ * `docudash.app@gmail.com`) is permitted.
+ */
+export async function requireAppManager(req: VercelRequest): Promise<AuthenticatedUser> {
+  const token = extractBearerToken(req);
+  const supabaseAdmin = getSupabaseAdmin();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabaseAdmin.auth.getUser(token);
+
+  if (authError || !user) {
+    throw new HttpError(401, 'invalid_token', 'Invalid or expired authentication token.');
+  }
+
+  if (!user.email_confirmed_at || !isConfiguredAppManagerEmail(user.email)) {
+    throw new HttpError(
+      403,
+      'manager_forbidden',
+      `Only the verified DocuDash App Manager account (${DEFAULT_APP_MANAGER_EMAIL}) can access this interface.`
+    );
+  }
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('id, role, full_name')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    throw new HttpError(500, 'profile_lookup_failed', 'Unable to verify App Manager profile.');
+  }
+
+  if (!profile) {
+    return {
+      userId: user.id,
+      email: user.email ?? null,
+      role: 'admin',
+      fullName: 'DocuDash App Manager',
+    };
+  }
+
+  return {
+    userId: profile.id,
+    email: user.email ?? null,
+    role: profile.role,
+    fullName: profile.full_name,
+  };
 }

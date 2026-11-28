@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 import type { DeleteAccountResponse } from '../types/database';
-import { requireAuthenticatedUser } from './_lib/auth';
+import { isConfiguredAppManagerEmail, requireAuthenticatedUser } from './_lib/auth';
 import {
   applyCors,
   handleRouteError,
@@ -80,6 +80,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         400,
         'confirmation_required',
         'Confirmation must equal "DELETE" to permanently delete your account.'
+      );
+    }
+
+    if (isConfiguredAppManagerEmail(caller.email)) {
+      throw new HttpError(
+        403,
+        'manager_self_delete_forbidden',
+        'The App Manager platform account cannot be self-deleted.'
       );
     }
 

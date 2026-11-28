@@ -23,7 +23,7 @@ export interface RunRetentionPurgeOptions {
   retentionDays?: number;
   dryRun?: boolean;
   actorId: string | null;
-  triggeredBy: 'cron_secret' | 'admin';
+  triggeredBy: 'cron_secret' | 'admin' | 'app_manager';
 }
 
 export async function runRetentionPurge(
