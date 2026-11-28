@@ -65,16 +65,12 @@ export default function AdminLayout() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
-  const { isAuthenticated, isAppManager, isStaff, profile, user, signOut } = useAuth();
+  const { isAuthenticated, isStaff, profile, user, signOut } = useAuth();
   const { colors } = useTheme();
   const [signingOut, setSigningOut] = useState(false);
 
-  if (!isAuthenticated || !isStaff || isAppManager) {
-    return (
-      <Redirect
-        href={isAppManager ? '/(manager)' : isAuthenticated ? '/(resident)/(tabs)' : '/(auth)'}
-      />
-    );
+  if (!isAuthenticated || !isStaff) {
+    return <Redirect href={isAuthenticated ? '/(resident)/(tabs)' : '/(auth)'} />;
   }
 
   const isDesktop = width >= DESKTOP_BREAKPOINT;
@@ -116,9 +112,8 @@ export default function AdminLayout() {
                     onPress={() => router.replace(item.href)}
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
-                    className={`flex-row items-center gap-3 rounded-lg px-3.5 py-3 ${
-                      active ? 'bg-primary-50' : 'bg-transparent'
-                    }`}
+                    className={`flex-row items-center gap-3 rounded-lg px-3.5 py-3 ${active ? 'bg-primary-50' : 'bg-transparent'
+                      }`}
                   >
                     <MaterialIcons
                       name={item.icon}
@@ -126,9 +121,8 @@ export default function AdminLayout() {
                       color={active ? colors.primary : colors.inkMuted}
                     />
                     <Text
-                      className={`text-sm font-semibold ${
-                        active ? 'text-primary' : 'text-ink-muted'
-                      }`}
+                      className={`text-sm font-semibold ${active ? 'text-primary' : 'text-ink-muted'
+                        }`}
                     >
                       {item.label}
                     </Text>
@@ -219,11 +213,10 @@ export default function AdminLayout() {
                 onPress={() => router.replace(item.href)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
-                className={`flex-1 flex-row items-center justify-center gap-1.5 rounded-lg border py-2 ${
-                  active
-                    ? 'border-primary bg-primary-50'
-                    : 'border-border bg-surface-muted'
-                }`}
+                className={`flex-1 flex-row items-center justify-center gap-1.5 rounded-lg border py-2 ${active
+                  ? 'border-primary bg-primary-50'
+                  : 'border-border bg-surface-muted'
+                  }`}
               >
                 <MaterialIcons
                   name={item.icon}
@@ -231,9 +224,8 @@ export default function AdminLayout() {
                   color={active ? colors.primary : colors.inkMuted}
                 />
                 <Text
-                  className={`text-xs font-semibold ${
-                    active ? 'text-primary' : 'text-ink-muted'
-                  }`}
+                  className={`text-xs font-semibold ${active ? 'text-primary' : 'text-ink-muted'
+                    }`}
                 >
                   {item.shortLabel}
                 </Text>
