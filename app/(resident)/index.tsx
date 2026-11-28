@@ -7,9 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandMark } from '@/components/BrandMark';
 import { Button } from '@/components/Button';
 import { RequestCard } from '@/components/RequestCard';
+import { SettingsButton } from '@/components/SettingsModal';
 import { Banner, EmptyState, LoadingState } from '@/components/StateView';
-import { colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { listResidentRequests, subscribeToResidentRequests } from '@/services/requestService';
 import { toServiceError } from '@/services/supabase';
 import type { RequestWithDetails } from '@/types/database';
@@ -26,6 +27,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 export default function ResidentDashboardScreen() {
   const insets = useSafeAreaInsets();
   const { user, profile } = useAuth();
+  const { colors } = useTheme();
   const userId = user?.id ?? null;
 
   const [requests, setRequests] = useState<RequestWithDetails[]>([]);
@@ -127,12 +129,15 @@ export default function ResidentDashboardScreen() {
               Welcome back, <Text className="font-semibold text-ink">{firstName}</Text>
             </Text>
           </View>
-          <Button
-            label="New Request"
-            icon="post-add"
-            size="sm"
-            onPress={() => router.push('/(resident)/request-new')}
-          />
+          <View className="flex-row items-center gap-2">
+            <SettingsButton compact />
+            <Button
+              label="New Request"
+              icon="post-add"
+              size="sm"
+              onPress={() => router.push('/(resident)/request-new')}
+            />
+          </View>
         </View>
 
         {/* Ready-for-pickup highlight banner */}
@@ -152,14 +157,14 @@ export default function ResidentDashboardScreen() {
               <MaterialIcons name="qr-code-2" size={24} color={colors.accent} />
             </View>
             <View className="flex-1 gap-0.5">
-              <Text className="text-sm font-bold text-surface">
+              <Text className="text-sm font-bold text-white">
                 {readyRequest.document_type?.name ?? 'Document'} is ready for pickup
               </Text>
               <Text className="text-xs text-primary-100">
                 Tap to open your QR pickup pass for the barangay counter.
               </Text>
             </View>
-            <MaterialIcons name="chevron-right" size={22} color={colors.surface} />
+            <MaterialIcons name="chevron-right" size={22} color="#FFFFFF" />
           </Pressable>
         ) : null}
 
@@ -197,7 +202,7 @@ export default function ResidentDashboardScreen() {
               >
                 <Text
                   className={`text-xs font-semibold ${
-                    selected ? 'text-surface' : 'text-ink-muted'
+                    selected ? 'text-white' : 'text-ink-muted'
                   }`}
                 >
                   {item.label}

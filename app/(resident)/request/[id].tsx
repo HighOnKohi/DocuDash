@@ -27,8 +27,8 @@ import {
   formatTimeWindow,
   getStatusDescription,
 } from '@/constants/format';
-import { colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import {
   getRequestById,
   subscribeToRequest,
@@ -72,6 +72,7 @@ export default function RequestDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id, notice } = useLocalSearchParams<{ id: string; notice?: string }>();
   const { profile } = useAuth();
+  const { colors } = useTheme();
 
   const [request, setRequest] = useState<RequestWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -355,9 +356,11 @@ export default function RequestDetailScreen() {
             <Text className="text-sm font-semibold text-ink">Back to Dashboard</Text>
           </Pressable>
 
-          <View className="flex-row items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1">
-            <View className="h-2 w-2 rounded-full bg-emerald-600" />
-            <Text className="text-[11px] font-semibold text-emerald-800">Live updates</Text>
+          <View className="flex-row items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 dark:border-emerald-800 dark:bg-emerald-950/50">
+            <View className="h-2 w-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
+            <Text className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-200">
+              Live updates
+            </Text>
           </View>
         </View>
 
@@ -413,7 +416,7 @@ export default function RequestDetailScreen() {
               <View className="overflow-hidden rounded-card border border-primary-200 bg-surface">
                 <View className="flex-row items-center justify-between bg-primary px-5 py-4">
                   <View className="gap-0.5">
-                    <Text className="text-base font-bold text-surface">Official QR Pickup Pass</Text>
+                    <Text className="text-base font-bold text-white">Official QR Pickup Pass</Text>
                     <Text className="text-xs text-primary-100">
                       Present this pass and a valid ID at the barangay counter
                     </Text>
@@ -501,7 +504,7 @@ export default function RequestDetailScreen() {
                           }`}
                         >
                           {isDone ? (
-                            <MaterialIcons name="check" size={16} color={colors.surface} />
+                            <MaterialIcons name="check" size={16} color="#FFFFFF" />
                           ) : (
                             <View
                               className={`h-2.5 w-2.5 rounded-full ${
@@ -678,7 +681,9 @@ export default function RequestDetailScreen() {
                         {files.length > 0 ? (
                           <MaterialIcons name="check-circle" size={18} color={colors.success} />
                         ) : (
-                          <Text className="text-xs font-semibold text-red-700">Missing</Text>
+                          <Text className="text-xs font-semibold text-red-700 dark:text-red-400">
+                            Missing
+                          </Text>
                         )}
                       </View>
 

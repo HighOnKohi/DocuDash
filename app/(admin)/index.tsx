@@ -20,7 +20,7 @@ import {
   formatSlotDate,
   formatTimeWindow,
 } from '@/constants/format';
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { listAllRequests, subscribeToAllRequests } from '@/services/requestService';
 import {
   getTodayManilaDate,
@@ -42,6 +42,7 @@ const STATUS_FILTERS: { key: QueueFilter; label: string }[] = [
 ];
 
 export default function AdminDashboardScreen() {
+  const { colors } = useTheme();
   const todayManila = useMemo(() => getTodayManilaDate(), []);
 
   const [requests, setRequests] = useState<RequestWithDetails[]>([]);
@@ -220,7 +221,7 @@ export default function AdminDashboardScreen() {
           <View className="min-w-[155px] flex-1 rounded-card border border-border bg-surface p-4">
             <View className="flex-row items-center justify-between">
               <Text className="text-xs font-semibold text-ink-subtle">Under Review</Text>
-              <MaterialIcons name="rate-review" size={18} color="#0369A1" />
+              <MaterialIcons name="rate-review" size={18} color={colors.info} />
             </View>
             <Text className="mt-1.5 text-3xl font-bold text-ink">{metrics.counts.reviewing}</Text>
             <Text className="mt-0.5 text-xs text-ink-muted">In active verification</Text>
@@ -281,7 +282,7 @@ export default function AdminDashboardScreen() {
                       </Text>
                       <Text
                         className={`text-xs font-bold ${
-                          isFull ? 'text-red-700' : 'text-ink-muted'
+                          isFull ? 'text-red-700 dark:text-red-400' : 'text-ink-muted'
                         }`}
                       >
                         {slot.booked_count}/{slot.max_capacity}
@@ -332,7 +333,7 @@ export default function AdminDashboardScreen() {
                     >
                       <Text
                         className={`text-xs font-semibold ${
-                          selected ? 'text-surface' : 'text-ink-muted'
+                          selected ? 'text-white' : 'text-ink-muted'
                         }`}
                       >
                         {item.label} ({metrics.counts[item.key]})

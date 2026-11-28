@@ -9,16 +9,16 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // DocuDash design tokens (light mode only — matched to the DocuDash royal blue & gold logo).
+        // DocuDash CSS-variable theme tokens (supports light & dark mode).
         primary: {
-          DEFAULT: '#01227F',
-          hover: '#1D3FA3',
-          50: '#EEF2FF',
-          100: '#DCE5FF',
-          200: '#B8C9F8',
-          600: '#1D3FA3',
-          700: '#01227F',
-          800: '#00175A',
+          DEFAULT: 'var(--color-primary)',
+          hover: 'var(--color-primary-hover)',
+          50: 'var(--color-primary-50)',
+          100: 'var(--color-primary-100)',
+          200: 'var(--color-primary-200)',
+          600: 'var(--color-primary-hover)',
+          700: 'var(--color-primary)',
+          800: 'var(--color-primary-800)',
         },
         accent: {
           DEFAULT: '#FBC128',
@@ -30,17 +30,18 @@ module.exports = {
           700: '#B45309',
         },
         surface: {
-          DEFAULT: '#FFFFFF',
-          muted: '#F8FAFC',
+          DEFAULT: 'var(--color-surface)',
+          muted: 'var(--color-surface-muted)',
+          input: 'var(--color-surface-input)',
         },
         border: {
-          DEFAULT: '#E2E8F0',
-          strong: '#CBD5E1',
+          DEFAULT: 'var(--color-border)',
+          strong: 'var(--color-border-strong)',
         },
         ink: {
-          DEFAULT: '#0F172A',
-          muted: '#475569',
-          subtle: '#64748B',
+          DEFAULT: 'var(--color-ink)',
+          muted: 'var(--color-ink-muted)',
+          subtle: 'var(--color-ink-subtle)',
         },
       },
       borderRadius: {

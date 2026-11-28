@@ -9,7 +9,7 @@ import {
   type TextInputProps,
 } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export interface TextFieldProps {
   label: string;
@@ -46,11 +46,12 @@ export function TextField({
   editable = true,
   required = false,
 }: TextFieldProps) {
+  const { colors } = useTheme();
   const [isHidden, setIsHidden] = useState(secureTextEntry);
   const [isFocused, setIsFocused] = useState(false);
 
   const borderClass = error
-    ? 'border-red-600'
+    ? 'border-red-600 dark:border-red-500'
     : isFocused
       ? 'border-primary'
       : 'border-border-strong';
@@ -60,7 +61,7 @@ export function TextField({
       <View className="flex-row items-center justify-between">
         <Text className="text-sm font-semibold text-ink">
           {label}
-          {required ? <Text className="text-red-600"> *</Text> : null}
+          {required ? <Text className="text-red-600 dark:text-red-400"> *</Text> : null}
         </Text>
         {maxLength ? (
           <Text className="text-xs text-ink-subtle">
@@ -112,7 +113,7 @@ export function TextField({
       </View>
 
       {error ? (
-        <Text className="text-xs font-medium text-red-700">{error}</Text>
+        <Text className="text-xs font-medium text-red-700 dark:text-red-400">{error}</Text>
       ) : helperText ? (
         <Text className="text-xs text-ink-subtle">{helperText}</Text>
       ) : null}

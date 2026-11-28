@@ -2,9 +2,11 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function ResidentLayout() {
+  const { colors } = useTheme();
+
   return (
     <Tabs
       screenOptions={{

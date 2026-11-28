@@ -2,7 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { ComponentProps } from 'react';
 import { ActivityIndicator, Pressable, Text } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -21,39 +21,6 @@ export interface ButtonProps {
   accessibilityLabel?: string;
 }
 
-const VARIANT_CLASSES: Record<ButtonVariant, { container: string; pressed: string; text: string; iconColor: string }> = {
-  primary: {
-    container: 'bg-primary border border-primary',
-    pressed: 'bg-primary-hover border-primary-hover',
-    text: 'text-surface',
-    iconColor: colors.surface,
-  },
-  secondary: {
-    container: 'bg-primary-50 border border-primary-200',
-    pressed: 'bg-primary-100 border-primary-200',
-    text: 'text-primary',
-    iconColor: colors.primary,
-  },
-  outline: {
-    container: 'bg-surface border border-border-strong',
-    pressed: 'bg-surface-muted border-border-strong',
-    text: 'text-ink',
-    iconColor: colors.ink,
-  },
-  ghost: {
-    container: 'bg-transparent border border-transparent',
-    pressed: 'bg-surface-muted border-transparent',
-    text: 'text-primary',
-    iconColor: colors.primary,
-  },
-  danger: {
-    container: 'bg-surface border border-red-200',
-    pressed: 'bg-red-50 border-red-600',
-    text: 'text-red-700',
-    iconColor: colors.danger,
-  },
-};
-
 export function Button({
   label,
   onPress,
@@ -65,7 +32,40 @@ export function Button({
   fullWidth = false,
   accessibilityLabel,
 }: ButtonProps) {
-  const styles = VARIANT_CLASSES[variant];
+  const { colors } = useTheme();
+
+  const variantStyles: Record<
+    ButtonVariant,
+    { container: string; text: string; iconColor: string }
+  > = {
+    primary: {
+      container: 'bg-primary border border-primary',
+      text: 'text-white',
+      iconColor: '#FFFFFF',
+    },
+    secondary: {
+      container: 'bg-primary-50 border border-primary-200',
+      text: 'text-primary',
+      iconColor: colors.primary,
+    },
+    outline: {
+      container: 'bg-surface border border-border-strong',
+      text: 'text-ink',
+      iconColor: colors.ink,
+    },
+    ghost: {
+      container: 'bg-transparent border border-transparent',
+      text: 'text-primary',
+      iconColor: colors.primary,
+    },
+    danger: {
+      container: 'bg-surface border border-red-200 dark:border-red-800',
+      text: 'text-red-700 dark:text-red-400',
+      iconColor: colors.danger,
+    },
+  };
+
+  const styles = variantStyles[variant];
   const isDisabled = disabled || loading;
   const sizeClass = size === 'sm' ? 'min-h-[38px] px-3.5 py-2' : 'min-h-[46px] px-5 py-3';
   const textSizeClass = size === 'sm' ? 'text-sm' : 'text-base';

@@ -7,7 +7,7 @@ import {
   formatSlotDate,
   formatTimeWindow,
 } from '@/constants/format';
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { RequestWithDetails } from '@/types/database';
 
 import { StatusBadge } from './StatusBadge';
@@ -18,6 +18,7 @@ export interface RequestCardProps {
 }
 
 export function RequestCard({ request, onPress }: RequestCardProps) {
+  const { colors } = useTheme();
   const documentName = request.document_type?.name ?? 'Barangay Document';
   const feeLabel = formatFee(request.document_type?.fee ?? 0);
   const slot = request.pickup_slot;

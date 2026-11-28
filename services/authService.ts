@@ -17,6 +17,8 @@ export interface RegisterInput {
   contactNumber: string;
   /** Explicit Data Privacy Act (RA 10173) consent checkbox value. Must be `true`. */
   privacyConsentAccepted: boolean;
+  /** Explicit Terms & Conditions acceptance checkbox value. Must be `true`. */
+  termsAccepted: boolean;
 }
 
 export interface RegisterResult {
@@ -58,6 +60,12 @@ export async function register(input: RegisterInput): Promise<RegisterResult> {
       { code: 'privacy_consent_required' }
     );
   }
+  if (!input.termsAccepted) {
+    throw new ServiceError(
+      'You must agree to the Terms & Conditions before creating an account.',
+      { code: 'terms_required' }
+    );
+  }
 
   const email = input.email.trim().toLowerCase();
   const fullName = input.fullName.trim();
@@ -89,6 +97,7 @@ export async function register(input: RegisterInput): Promise<RegisterResult> {
     );
   }
 
+  const nowIso = new Date().toISOString();
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -98,7 +107,8 @@ export async function register(input: RegisterInput): Promise<RegisterResult> {
         full_name: fullName,
         address,
         contact_number: contactNumber,
-        privacy_consent_at: new Date().toISOString(),
+        privacy_consent_at: nowIso,
+        terms_accepted_at: nowIso,
       },
     },
   });
@@ -158,6 +168,28 @@ export async function logout(): Promise<void> {
   const { error } = await supabase.auth.signOut();
   if (error) {
     throw toServiceError(error, 'Unable to sign out.');
+  }
+}
+
+/** Sends a password reset link to the specified email address. */
+export async function sendPasswordReset(email: string): Promise<void> {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new ServiceError('Please enter your email address.', { code: 'invalid_email' });
+  }
+
+  const supabase = getSupabaseClient();
+  const redirectTo =
+    typeof window !== 'undefined' && window.location?.origin
+      ? `${window.location.origin}/login`
+      : undefined;
+
+  const { error } = await supabase.auth.resetPasswordForEmail(
+    normalizedEmail,
+    redirectTo ? { redirectTo } : undefined
+  );
+  if (error) {
+    throw toServiceError(error, 'Unable to send password reset email.');
   }
 }
 

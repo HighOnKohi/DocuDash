@@ -1,112 +1,117 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
-import { ScrollView, Text, View } from 'react-native';
+import type { ComponentProps } from 'react';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BrandMark } from '@/components/BrandMark';
-import { Button } from '@/components/Button';
-import { FeatureCard, type FeatureCardProps } from '@/components/FeatureCard';
+import logoSource from '@/assets/images/logo.png';
+import { SettingsButton } from '@/components/SettingsModal';
 import { Banner } from '@/components/StateView';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 
-const FEATURES: FeatureCardProps[] = [
-  {
-    icon: 'post-add',
-    title: 'Request online',
-    description:
-      'Choose a barangay document, state your purpose, and upload valid requirements from your phone.',
-  },
-  {
-    icon: 'track-changes',
-    title: 'Track in real time',
-    description: 'Follow your request from pending to ready for pickup with live status updates.',
-  },
-  {
-    icon: 'event-available',
-    title: 'Book a pickup slot',
-    description: 'Reserve a date and time window so you skip the line at the barangay hall.',
-  },
-  {
-    icon: 'qr-code-2',
-    title: 'Claim with a QR pass',
-    description: 'Present your secure pickup pass at the counter for fast, verified release.',
-  },
+type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
+
+const HIGHLIGHTS: { icon: MaterialIconName; label: string }[] = [
+  { icon: 'post-add', label: 'Request Online' },
+  { icon: 'event-available', label: 'Book a Slot' },
+  { icon: 'qr-code-2', label: 'QR Pickup' },
 ];
 
 /**
- * Public landing screen shown to unauthenticated visitors at `/` (inside the
- * `(auth)` group so redirects between `(auth)`, `(resident)`, and `(admin)`
- * never collide on `/`). Signed-in residents and barangay staff are routed
- * straight to `(resident)` or `(admin)` by the root layout's `Stack.Protected`
- * guards.
+ * Clean, banking-app style public entry screen shown to unauthenticated
+ * visitors at `/` (inside `(auth)` so redirects between `(auth)`, `(resident)`,
+ * and `(admin)` never collide on `/`).
  */
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { configError } = useAuth();
+  const { colors } = useTheme();
 
   return (
     <ScrollView
-      className="flex-1 bg-surface-muted"
-      contentContainerStyle={{ paddingTop: insets.top + 24, paddingBottom: insets.bottom + 36 }}
+      className="flex-1 bg-surface"
+      contentContainerStyle={{
+        flexGrow: 1,
+        paddingTop: insets.top + 14,
+        paddingBottom: insets.bottom + 24,
+        paddingHorizontal: 24,
+      }}
     >
-      <View className="mx-auto w-full max-w-5xl gap-10 px-5 lg:px-10">
-        <View className="flex-row flex-wrap items-center justify-between gap-4">
-          <BrandMark />
-          <View className="flex-row items-center gap-2.5">
-            <Button
-              label="Sign In"
-              variant="outline"
-              size="sm"
-              onPress={() => router.push('/(auth)/login')}
-            />
-            <Button
-              label="Register"
-              variant="primary"
-              size="sm"
-              onPress={() => router.push('/(auth)/register')}
-            />
-          </View>
+      <View className="mx-auto w-full max-w-md flex-1 justify-between">
+        {/* Minimal top bar */}
+        <View className="flex-row items-center justify-end">
+          <SettingsButton compact />
         </View>
 
-        {configError ? <Banner tone="warning" title="Configuration needed" message={configError} /> : null}
+        {/* Centered hero */}
+        <View className="my-auto items-center gap-6 py-8">
+          <Image
+            source={logoSource}
+            resizeMode="contain"
+            style={{ width: 80, height: 80, borderRadius: 20 }}
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          />
 
-        <View className="gap-5">
-          <View className="gap-3">
-            <Text className="text-3xl font-bold leading-tight text-ink lg:text-5xl">
+          <View className="items-center gap-2">
+            <Text className="text-center text-3xl font-extrabold tracking-tight text-ink">
+              DocuDash
+            </Text>
+            <Text className="max-w-xs text-center text-base leading-6 text-ink-muted">
               Barangay documents, without the long queue.
             </Text>
-            <Text className="max-w-2xl text-base leading-6 text-ink-muted lg:text-lg">
-              DocuDash lets residents submit document requests ahead of time and pick them up on a
-              scheduled slot, while barangay staff review requirements and verify releases from one
-              secure portal.
-            </Text>
           </View>
 
-          <View className="flex-row flex-wrap gap-3">
-            <Button
-              label="Create Resident Account"
-              icon="person-add"
-              onPress={() => router.push('/(auth)/register')}
-            />
-            <Button
-              label="Sign In to Your Account"
-              variant="outline"
-              icon="login"
-              onPress={() => router.push('/(auth)/login')}
-            />
+          <View className="flex-row flex-wrap items-center justify-center gap-2">
+            {HIGHLIGHTS.map((item) => (
+              <View
+                key={item.label}
+                className="flex-row items-center gap-1.5 rounded-full bg-surface-input px-3.5 py-2"
+              >
+                <MaterialIcons
+                  name={item.icon}
+                  size={16}
+                  color={colors.primary}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                />
+                <Text className="text-xs font-semibold text-ink">{item.label}</Text>
+              </View>
+            ))}
           </View>
+
+          {configError ? (
+            <View className="w-full">
+              <Banner tone="warning" title="Configuration needed" message={configError} />
+            </View>
+          ) : null}
         </View>
 
-        <View className="gap-4 lg:flex-row lg:flex-wrap">
-          {FEATURES.map((feature) => (
-            <FeatureCard key={feature.title} {...feature} />
-          ))}
-        </View>
+        {/* Bottom-anchored CTA zone */}
+        <View className="gap-3 pt-4">
+          <Pressable
+            onPress={() => router.push('/(auth)/login')}
+            accessibilityRole="button"
+            accessibilityLabel="Sign In"
+            className="min-h-[54px] w-full flex-row items-center justify-center rounded-full bg-primary px-6"
+            style={({ pressed }) => (pressed ? { opacity: 0.9 } : undefined)}
+          >
+            <Text className="text-base font-bold text-white">Sign In</Text>
+          </Pressable>
 
-        <View className="rounded-card border border-border bg-surface p-5">
-          <Text className="text-sm leading-5 text-ink-muted">
-            Personal information collected by DocuDash is processed in accordance with the Data
-            Privacy Act of 2012 (Republic Act No. 10173). Uploaded IDs are stored privately and
-            purged 30 days after request completion.
+          <Pressable
+            onPress={() => router.push('/(auth)/register')}
+            accessibilityRole="button"
+            accessibilityLabel="Create Resident Account"
+            className="min-h-[54px] w-full flex-row items-center justify-center rounded-full border border-border-strong bg-surface-input px-6"
+            style={({ pressed }) => (pressed ? { opacity: 0.85 } : undefined)}
+          >
+            <Text className="text-base font-semibold text-ink">Create Resident Account</Text>
+          </Pressable>
+
+          <Text className="pt-2 text-center text-[11px] leading-4 text-ink-subtle">
+            Protected under RA 10173 · Uploaded IDs are purged after 30 days.
           </Text>
         </View>
       </View>

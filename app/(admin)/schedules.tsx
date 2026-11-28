@@ -6,7 +6,7 @@ import { Card } from '@/components/Card';
 import { Banner, EmptyState, LoadingState } from '@/components/StateView';
 import { TextField } from '@/components/TextField';
 import { addDaysToDate, formatSlotDate, formatTimeWindow } from '@/constants/format';
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import {
   createPickupSlot,
   deletePickupSlot,
@@ -21,6 +21,7 @@ import type { PickupSlot } from '@/types/database';
 const PRESET_WINDOWS = ['08:00-10:00', '10:00-12:00', '13:00-15:00', '15:00-17:00'] as const;
 
 export default function AdminSchedulesScreen() {
+  const { colors } = useTheme();
   const todayManila = useMemo(() => getTodayManilaDate(), []);
 
   const [slots, setSlots] = useState<PickupSlot[]>([]);

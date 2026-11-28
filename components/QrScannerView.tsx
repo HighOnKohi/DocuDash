@@ -5,7 +5,7 @@ import { Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Banner } from '@/components/StateView';
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export interface QrScannerViewProps {
   /** Whether the camera preview and QR decoding are actively running. */
@@ -26,6 +26,7 @@ export function QrScannerView({
   onScan,
   onToggleActive,
 }: QrScannerViewProps) {
+  const { colors } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const lastScannedRef = useRef<{ value: string; timestamp: number } | null>(null);
 
@@ -104,7 +105,7 @@ export function QrScannerView({
 
   return (
     <View className="gap-3">
-      <View className="relative h-[300px] overflow-hidden rounded-lg border border-border bg-ink">
+      <View className="relative h-[300px] overflow-hidden rounded-lg border border-border bg-black">
         <CameraView
           style={{ flex: 1 }}
           facing="back"
@@ -115,7 +116,7 @@ export function QrScannerView({
           pointerEvents="none"
           className="absolute inset-0 items-center justify-center"
         >
-          <View className="h-48 w-48 rounded-2xl border-2 border-surface" />
+          <View className="h-48 w-48 rounded-2xl border-2 border-white" />
         </View>
       </View>
 

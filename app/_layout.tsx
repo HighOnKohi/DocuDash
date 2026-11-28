@@ -1,32 +1,25 @@
 import '../global.css';
 
-import { DefaultTheme, SplashScreen, Stack, ThemeProvider, type Theme } from 'expo-router';
+import {
+  DarkTheme,
+  DefaultTheme,
+  SplashScreen,
+  Stack,
+  ThemeProvider,
+  type Theme,
+} from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 
 import { BrandMark } from '@/components/BrandMark';
-import { colors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { AppThemeProvider, useTheme } from '@/contexts/ThemeContext';
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export const unstable_settings = {
   anchor: '(auth)',
-};
-
-const docuDashTheme: Theme = {
-  ...DefaultTheme,
-  dark: false,
-  colors: {
-    ...DefaultTheme.colors,
-    primary: colors.primary,
-    background: colors.surfaceMuted,
-    card: colors.surface,
-    text: colors.ink,
-    border: colors.border,
-    notification: colors.primaryHover,
-  },
 };
 
 function SplashScreenController() {
@@ -43,6 +36,7 @@ function SplashScreenController() {
 
 function RootNavigator() {
   const { isAuthenticated, isStaff, isLoading } = useAuth();
+  const { colors } = useTheme();
 
   if (isLoading) {
     return (
@@ -85,19 +79,48 @@ function RootNavigator() {
   );
 }
 
+function RootThemedShell() {
+  const { isDark, colors, themeVars } = useTheme();
+
+  const navigationTheme = useMemo<Theme>(() => {
+    const base = isDark ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      dark: isDark,
+      colors: {
+        ...base.colors,
+        primary: colors.primary,
+        background: colors.surfaceMuted,
+        card: colors.surface,
+        text: colors.ink,
+        border: colors.border,
+        notification: colors.primaryHover,
+      },
+    };
+  }, [isDark, colors]);
+
+  return (
+    <ThemeProvider value={navigationTheme}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <View className="flex-1 bg-surface-muted" style={themeVars}>
+        <AuthProvider>
+          <SplashScreenController />
+          <RootNavigator />
+        </AuthProvider>
+      </View>
+    </ThemeProvider>
+  );
+}
+
 /**
- * Root layout with light theme, global Tailwind stylesheet, AuthProvider, and
- * Expo Router `Stack.Protected` role guards separating public/auth, resident,
- * and staff/admin routes.
+ * Root layout with adaptive light/dark theme, global Tailwind stylesheet,
+ * AuthProvider, and Expo Router `Stack.Protected` role guards separating
+ * public/auth, resident, and staff/admin routes.
  */
 export default function RootLayout() {
   return (
-    <ThemeProvider value={docuDashTheme}>
-      <StatusBar style="dark" />
-      <AuthProvider>
-        <SplashScreenController />
-        <RootNavigator />
-      </AuthProvider>
-    </ThemeProvider>
+    <AppThemeProvider>
+      <RootThemedShell />
+    </AppThemeProvider>
   );
 }

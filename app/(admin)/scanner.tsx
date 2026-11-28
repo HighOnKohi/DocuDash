@@ -14,12 +14,13 @@ import {
   formatSlotDate,
   formatTimeWindow,
 } from '@/constants/format';
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { verifyPickupByQrToken } from '@/services/requestService';
 import { toServiceError } from '@/services/supabase';
 import type { VerifyPickupResponse } from '@/types/database';
 
 export default function AdminScannerScreen() {
+  const { colors } = useTheme();
   const [cameraActive, setCameraActive] = useState(false);
   const [manualToken, setManualToken] = useState('');
   const [verifying, setVerifying] = useState(false);
@@ -129,8 +130,10 @@ export default function AdminScannerScreen() {
                 title="Pickup Verified & Completed"
                 subtitle={`Released on ${formatDateTime(lastVerified.request.completed_at)}`}
                 rightSlot={
-                  <View className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1">
-                    <Text className="text-xs font-bold text-emerald-800">VERIFIED</Text>
+                  <View className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 dark:border-emerald-800 dark:bg-emerald-950/50">
+                    <Text className="text-xs font-bold text-emerald-800 dark:text-emerald-200">
+                      VERIFIED
+                    </Text>
                   </View>
                 }
               >

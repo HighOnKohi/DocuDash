@@ -7,8 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import logoSource from '@/assets/images/logo.png';
 import { BrandMark } from '@/components/BrandMark';
 import { Button } from '@/components/Button';
-import { colors, DESKTOP_BREAKPOINT } from '@/constants/theme';
+import { SettingsButton } from '@/components/SettingsModal';
+import { DESKTOP_BREAKPOINT } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 
 type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -57,6 +59,7 @@ export default function AdminLayout() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const { isAuthenticated, isStaff, profile, user, signOut } = useAuth();
+  const { colors } = useTheme();
   const [signingOut, setSigningOut] = useState(false);
 
   if (!isAuthenticated || !isStaff) {
@@ -136,6 +139,7 @@ export default function AdminLayout() {
                 {roleLabel}
               </Text>
             </View>
+            <SettingsButton compact fullWidth />
             <Button
               label="Sign Out"
               variant="outline"
@@ -180,16 +184,19 @@ export default function AdminLayout() {
             </View>
           </View>
 
-          <Pressable
-            onPress={() => void handleSignOut()}
-            disabled={signingOut}
-            accessibilityRole="button"
-            accessibilityLabel="Sign out"
-            className="flex-row items-center gap-1 rounded-lg border border-border px-3 py-1.5"
-          >
-            <MaterialIcons name="logout" size={16} color={colors.inkMuted} />
-            <Text className="text-xs font-semibold text-ink-muted">Sign Out</Text>
-          </Pressable>
+          <View className="flex-row items-center gap-2">
+            <SettingsButton compact />
+            <Pressable
+              onPress={() => void handleSignOut()}
+              disabled={signingOut}
+              accessibilityRole="button"
+              accessibilityLabel="Sign out"
+              className="flex-row items-center gap-1 rounded-lg border border-border px-3 py-1.5"
+            >
+              <MaterialIcons name="logout" size={16} color={colors.inkMuted} />
+              <Text className="text-xs font-semibold text-ink-muted">Sign Out</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View className="mt-3 flex-row gap-2">

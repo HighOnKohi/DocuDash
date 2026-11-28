@@ -10,7 +10,7 @@ import { Card } from '@/components/Card';
 import { Banner, LoadingState } from '@/components/StateView';
 import { TextField } from '@/components/TextField';
 import { formatFee, formatSlotDate, formatTimeWindow } from '@/constants/format';
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { createRequest, listDocumentTypes } from '@/services/requestService';
 import {
   bookPickupSlot,
@@ -68,6 +68,7 @@ async function readUploadBody(item: SelectedUpload): Promise<UploadableFileBody>
 
 export default function NewRequestScreen() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
 
   const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
   const [slots, setSlots] = useState<PickupSlot[]>([]);

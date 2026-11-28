@@ -25,8 +25,8 @@ import {
   formatSlotDate,
   formatTimeWindow,
 } from '@/constants/format';
-import { colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { listAuditLogs } from '@/services/auditService';
 import {
   approveRequest,
@@ -65,6 +65,7 @@ function getExpiryTimestamp(ttlSeconds: number): number {
 export default function AdminRequestReviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const { colors } = useTheme();
 
   const [request, setRequest] = useState<RequestWithDetails | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -532,7 +533,9 @@ export default function AdminRequestReviewScreen() {
                             {files.length > 0 ? (
                               <MaterialIcons name="check-circle" size={18} color={colors.success} />
                             ) : (
-                              <Text className="text-xs font-bold text-red-700">Not uploaded</Text>
+                              <Text className="text-xs font-bold text-red-700 dark:text-red-400">
+                                Not uploaded
+                              </Text>
                             )}
                           </View>
 
@@ -628,7 +631,7 @@ export default function AdminRequestReviewScreen() {
                       )}
 
                       {rejectionMode ? (
-                        <View className="gap-3 rounded-lg border border-red-200 bg-red-50 p-3.5">
+                        <View className="gap-3 rounded-lg border border-red-200 bg-red-50 p-3.5 dark:border-red-800 dark:bg-red-950/50">
                           <TextField
                             label="Reason for rejection"
                             value={rejectionReason}

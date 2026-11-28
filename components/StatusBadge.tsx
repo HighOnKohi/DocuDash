@@ -3,7 +3,7 @@ import type { ComponentProps } from 'react';
 import { Text, View } from 'react-native';
 
 import { getStatusLabel } from '@/constants/format';
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { RequestStatus } from '@/types/database';
 
 type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
@@ -16,50 +16,52 @@ interface StatusStyle {
   iconColor: string;
 }
 
-const STATUS_STYLES: Record<RequestStatus, StatusStyle> = {
-  pending: {
-    bg: 'bg-amber-50',
-    border: 'border-amber-200',
-    text: 'text-amber-800',
-    icon: 'schedule',
-    iconColor: colors.warning,
-  },
-  reviewing: {
-    bg: 'bg-sky-50',
-    border: 'border-sky-200',
-    text: 'text-sky-800',
-    icon: 'rate-review',
-    iconColor: '#0369A1',
-  },
-  ready: {
-    bg: 'bg-primary-50',
-    border: 'border-primary-200',
-    text: 'text-primary',
-    icon: 'qr-code-2',
-    iconColor: colors.primary,
-  },
-  completed: {
-    bg: 'bg-emerald-50',
-    border: 'border-emerald-200',
-    text: 'text-emerald-800',
-    icon: 'check-circle',
-    iconColor: colors.success,
-  },
-  rejected: {
-    bg: 'bg-red-50',
-    border: 'border-red-200',
-    text: 'text-red-800',
-    icon: 'cancel',
-    iconColor: colors.danger,
-  },
-};
-
 export interface StatusBadgeProps {
   status: RequestStatus;
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {
-  const style = STATUS_STYLES[status];
+  const { colors } = useTheme();
+
+  const statusStyles: Record<RequestStatus, StatusStyle> = {
+    pending: {
+      bg: 'bg-amber-50 dark:bg-amber-950/50',
+      border: 'border-amber-200 dark:border-amber-800',
+      text: 'text-amber-800 dark:text-amber-200',
+      icon: 'schedule',
+      iconColor: colors.warning,
+    },
+    reviewing: {
+      bg: 'bg-sky-50 dark:bg-sky-950/50',
+      border: 'border-sky-200 dark:border-sky-800',
+      text: 'text-sky-800 dark:text-sky-200',
+      icon: 'rate-review',
+      iconColor: colors.info,
+    },
+    ready: {
+      bg: 'bg-primary-50',
+      border: 'border-primary-200',
+      text: 'text-primary',
+      icon: 'qr-code-2',
+      iconColor: colors.primary,
+    },
+    completed: {
+      bg: 'bg-emerald-50 dark:bg-emerald-950/50',
+      border: 'border-emerald-200 dark:border-emerald-800',
+      text: 'text-emerald-800 dark:text-emerald-200',
+      icon: 'check-circle',
+      iconColor: colors.success,
+    },
+    rejected: {
+      bg: 'bg-red-50 dark:bg-red-950/50',
+      border: 'border-red-200 dark:border-red-800',
+      text: 'text-red-800 dark:text-red-200',
+      icon: 'cancel',
+      iconColor: colors.danger,
+    },
+  };
+
+  const style = statusStyles[status];
 
   return (
     <View

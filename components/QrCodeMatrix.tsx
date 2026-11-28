@@ -3,8 +3,6 @@ import { useMemo } from 'react';
 import { View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 
-import { colors } from '@/constants/theme';
-
 export interface QrCodeMatrixProps {
   value: string;
   size?: number;
@@ -14,6 +12,8 @@ export interface QrCodeMatrixProps {
 /**
  * Renders a crisp vector QR code (ISO/IEC 18004, EC level M) across iOS,
  * Android, and Web using `qrcode` matrix data and `react-native-svg`.
+ * Always keeps dark modules on a pure white background for reliable scanning
+ * even when Dark Mode is enabled.
  */
 export function QrCodeMatrix({
   value,
@@ -44,13 +44,13 @@ export function QrCodeMatrix({
 
   return (
     <View
-      className="items-center justify-center rounded-xl border border-border bg-surface p-3"
+      className="items-center justify-center rounded-xl border border-border bg-white p-3"
       accessibilityRole="image"
       accessibilityLabel="QR pickup pass code"
     >
       <Svg width={size} height={size} viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}>
-        <Rect x={0} y={0} width={viewBoxSize} height={viewBoxSize} fill={colors.surface} />
-        <Path d={pathData} fill={colors.ink} />
+        <Rect x={0} y={0} width={viewBoxSize} height={viewBoxSize} fill="#FFFFFF" />
+        <Path d={pathData} fill="#0F172A" />
       </Svg>
     </View>
   );
