@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 import type {
@@ -25,6 +26,7 @@ import {
   sendJson,
 } from './_lib/http';
 import { DEFAULT_RETENTION_DAYS, runRetentionPurge } from './_lib/retentionPurge';
+import { sendBarangayAdminApprovalEmail } from './_lib/smtp';
 import { getSupabaseAdmin } from './_lib/supabaseAdmin';
 
 const UUID_PATTERN =
@@ -60,6 +62,40 @@ function assertUuid(value: unknown, fieldName: string): string {
 
 function escapeIlikeLiteral(value: string): string {
   return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+const TEMP_PWD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+const CONTACT_REGEX = /^\+?[0-9][0-9 -]{6,18}[0-9]$/;
+const DEFAULT_PORTAL_URL = 'https://docu-dash-ph.vercel.app';
+
+function generateTemporaryPassword(): string {
+  const bytes = randomBytes(12);
+  let chars = '';
+  for (let i = 0; i < 12; i++) {
+    chars += TEMP_PWD_CHARS[bytes[i]! % TEMP_PWD_CHARS.length];
+  }
+  return `DD-${chars.slice(0, 4)}-${chars.slice(4, 8)}-${chars.slice(8, 12)}`;
+}
+
+function sanitizeContactNumber(raw: string | null | undefined): string {
+  const trimmed = (raw ?? '').trim();
+  if (CONTACT_REGEX.test(trimmed)) {
+    return trimmed;
+  }
+  const digitsOnly = trimmed.replace(/[^0-9]/g, '');
+  if (digitsOnly.length >= 8 && digitsOnly.length <= 15) {
+    return digitsOnly;
+  }
+  return '09000000000';
+}
+
+function resolvePortalUrl(req: VercelRequest): string {
+  const originHeader = typeof req.headers.origin === 'string' ? req.headers.origin.trim() : '';
+  if (/^https?:\/\//i.test(originHeader)) {
+    return originHeader.replace(/\/+$/, '');
+  }
+  const configured = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, '') ?? '';
+  return configured || DEFAULT_PORTAL_URL;
 }
 
 async function listAllAuthUsers(
@@ -386,7 +422,8 @@ async function handleGetDashboard(
 async function handlePostAction(
   supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
   managerUserId: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  portalUrl: string
 ): Promise<AppManagerActionResponse> {
   const action = body.action as AppManagerActionPayload['action'] | undefined;
 
@@ -647,6 +684,9 @@ async function handlePostAction(
       }
 
       let promotedUser = false;
+      let accountCreated = false;
+      let emailedCredentials = false;
+      let temporaryPasswordFallback: string | undefined;
 
       if (decision === 'approved') {
         let existingBarangay: {
@@ -744,6 +784,7 @@ async function handlePostAction(
             const matchedAuth = authUsers.find(
               (u) => u.email?.trim().toLowerCase() === targetEmail
             );
+
             if (matchedAuth) {
               const { data: updatedProfile } = await supabaseAdmin
                 .from('profiles')
@@ -762,6 +803,94 @@ async function handlePostAction(
 
               if (updatedProfile) {
                 promotedUser = true;
+                const emailRes = await sendBarangayAdminApprovalEmail({
+                  to: targetEmail,
+                  applicantName: reqRow.applicant_name.trim() || 'Barangay Administrator',
+                  barangayName: resolvedBarangay.name,
+                  cityMunicipality: resolvedBarangay.city_municipality,
+                  province: resolvedBarangay.province,
+                  portalUrl,
+                  temporaryPassword: null,
+                });
+                emailedCredentials = emailRes.sent;
+              }
+            } else {
+              const tempPassword = generateTemporaryPassword();
+              const rawName = reqRow.applicant_name.trim();
+              const safeName =
+                rawName.length >= 2 ? rawName.slice(0, 120) : 'Barangay Administrator';
+              const rawAddress = (reqRow.hall_address ?? '').trim();
+              const fallbackAddress = `${resolvedBarangay.name}, ${resolvedBarangay.city_municipality}`;
+              const safeAddress = (rawAddress.length >= 5 ? rawAddress : fallbackAddress).slice(
+                0,
+                300
+              );
+              const safeContact = sanitizeContactNumber(reqRow.contact_number);
+
+              const { data: createdAuth, error: createError } =
+                await supabaseAdmin.auth.admin.createUser({
+                  email: targetEmail,
+                  password: tempPassword,
+                  email_confirm: true,
+                  user_metadata: {
+                    full_name: safeName,
+                    address: safeAddress,
+                    contact_number: safeContact,
+                    privacy_consent_at: new Date().toISOString(),
+                    must_change_password: true,
+                    barangay_code: resolvedBarangay.psgc_code,
+                    barangay_name: resolvedBarangay.name,
+                    city_municipality: resolvedBarangay.city_municipality,
+                    province: resolvedBarangay.province,
+                    region: resolvedBarangay.region,
+                  },
+                });
+
+              if (createError || !createdAuth?.user) {
+                throw new HttpError(
+                  500,
+                  'admin_account_create_failed',
+                  createError?.message ||
+                    'Approved barangay record, but failed to provision the Barangay Admin account.'
+                );
+              }
+
+              const { error: promoteNewError } = await supabaseAdmin
+                .from('profiles')
+                .update({
+                  role: 'admin',
+                  barangay_id: resolvedBarangay.id,
+                  barangay_code: resolvedBarangay.psgc_code,
+                  barangay_name: resolvedBarangay.name,
+                  city_municipality: resolvedBarangay.city_municipality,
+                  province: resolvedBarangay.province || null,
+                  region: resolvedBarangay.region || null,
+                })
+                .eq('id', createdAuth.user.id);
+
+              if (promoteNewError) {
+                throw new HttpError(
+                  500,
+                  'admin_profile_promote_failed',
+                  'Account created, but failed to promote its profile role to Barangay Admin.'
+                );
+              }
+
+              accountCreated = true;
+              promotedUser = true;
+
+              const emailRes = await sendBarangayAdminApprovalEmail({
+                to: targetEmail,
+                applicantName: safeName,
+                barangayName: resolvedBarangay.name,
+                cityMunicipality: resolvedBarangay.city_municipality,
+                province: resolvedBarangay.province,
+                portalUrl,
+                temporaryPassword: tempPassword,
+              });
+              emailedCredentials = emailRes.sent;
+              if (!emailedCredentials) {
+                temporaryPasswordFallback = tempPassword;
               }
             }
           }
@@ -776,22 +905,31 @@ async function handlePostAction(
           request_id: requestId,
           decision,
           promoted_user: promotedUser,
+          account_created: accountCreated,
+          emailed_credentials: emailedCredentials,
         },
       });
 
       const message =
         decision === 'rejected'
           ? `Marked onboarding request for ${reqRow.barangay_name} as rejected.`
-          : promotedUser
-            ? `Approved ${reqRow.barangay_name} and promoted the applicant's registered account to admin.`
-            : body.promoteApplicant === true
-              ? `Approved ${reqRow.barangay_name}. No registered account matched ${reqRow.applicant_email} yet — promote the user once they register.`
+          : accountCreated
+            ? emailedCredentials
+              ? `Approved ${reqRow.barangay_name}, created the Barangay Admin account, and emailed temporary credentials to ${reqRow.applicant_email}.`
+              : `Approved ${reqRow.barangay_name} and created the Barangay Admin account, but SMTP email failed. Copy the fallback password shown below.`
+            : promotedUser
+              ? emailedCredentials
+                ? `Approved ${reqRow.barangay_name}, promoted ${reqRow.applicant_email} to admin, and sent confirmation email.`
+                : `Approved ${reqRow.barangay_name} and promoted ${reqRow.applicant_email} to admin.`
               : `Approved onboarding request for ${reqRow.barangay_name}.`;
 
       return {
         ok: true,
         action: 'review_admin_request',
         promotedUser,
+        accountCreated,
+        emailedCredentials,
+        ...(temporaryPasswordFallback ? { temporaryPasswordFallback } : {}),
         message,
       };
     }
@@ -947,7 +1085,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     if (req.method === 'POST') {
       const body = parseJsonBody<Record<string, unknown>>(req);
-      const result = await handlePostAction(supabaseAdmin, manager.userId, body);
+      const result = await handlePostAction(
+        supabaseAdmin,
+        manager.userId,
+        body,
+        resolvePortalUrl(req)
+      );
       sendJson(res, 200, result);
       return;
     }

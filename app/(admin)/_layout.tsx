@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import logoSource from '@/assets/images/logo.png';
 import { BrandMark } from '@/components/BrandMark';
 import { Button } from '@/components/Button';
+import { ChangePasswordModal } from '@/components/ChangePasswordModal';
 import { SettingsButton } from '@/components/SettingsModal';
 import { DESKTOP_BREAKPOINT } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
@@ -65,16 +66,47 @@ export default function AdminLayout() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
-  const { isAuthenticated, isStaff, profile, user, signOut } = useAuth();
+  const { isAuthenticated, isAppManager, isStaff, profile, user, signOut } = useAuth();
   const { colors } = useTheme();
   const [signingOut, setSigningOut] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [tempBannerDismissed, setTempBannerDismissed] = useState(false);
 
-  if (!isAuthenticated || !isStaff) {
-    return <Redirect href={isAuthenticated ? '/(resident)/(tabs)' : '/(auth)'} />;
+  if (!isAuthenticated || !isStaff || isAppManager) {
+    return (
+      <Redirect
+        href={isAppManager ? '/(manager)' : isAuthenticated ? '/(resident)/(tabs)' : '/(auth)'}
+      />
+    );
   }
 
   const isDesktop = width >= DESKTOP_BREAKPOINT;
   const roleLabel = profile?.role === 'admin' ? 'Administrator' : 'Barangay Staff';
+  const showTempPasswordPrompt =
+    Boolean(user?.user_metadata?.must_change_password) && !tempBannerDismissed;
+
+  const tempPasswordBanner = showTempPasswordPrompt ? (
+    <View className="flex-row flex-wrap items-center justify-between gap-2 border-b border-amber-300 bg-amber-50 px-4 py-2.5 dark:border-amber-800 dark:bg-amber-950/60">
+      <View className="min-w-[200px] flex-1 flex-row items-center gap-2">
+        <MaterialIcons name="warning-amber" size={18} color={colors.warning} />
+        <Text className="flex-1 text-xs font-semibold text-amber-900 dark:text-amber-200">
+          You are using a temporary password. Update your password now to secure this barangay
+          account.
+        </Text>
+      </View>
+      <View className="flex-row items-center gap-2">
+        <Button
+          label="Change Password"
+          size="sm"
+          variant="primary"
+          onPress={() => setChangePasswordOpen(true)}
+        />
+        <Pressable onPress={() => setTempBannerDismissed(true)} hitSlop={8}>
+          <MaterialIcons name="close" size={18} color={colors.inkMuted} />
+        </Pressable>
+      </View>
+    </View>
+  ) : null;
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -159,8 +191,16 @@ export default function AdminLayout() {
 
         {/* Main Content Area */}
         <View className="flex-1 bg-surface-muted">
+          {tempPasswordBanner}
           <Slot />
         </View>
+
+        <ChangePasswordModal
+          visible={changePasswordOpen}
+          onClose={() => setChangePasswordOpen(false)}
+          isTemporaryPassword
+          onSuccess={() => setTempBannerDismissed(true)}
+        />
       </View>
     );
   }
@@ -236,8 +276,16 @@ export default function AdminLayout() {
       </View>
 
       <View className="flex-1">
+        {tempPasswordBanner}
         <Slot />
       </View>
+
+      <ChangePasswordModal
+        visible={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+        isTemporaryPassword
+        onSuccess={() => setTempBannerDismissed(true)}
+      />
     </View>
   );
 }

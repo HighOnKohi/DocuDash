@@ -346,9 +346,67 @@ export async function updateAccountPassword(newPassword: string): Promise<void> 
   }
 
   const supabase = getSupabaseClient();
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  const { error } = await supabase.auth.updateUser({
+    password: newPassword,
+    data: { must_change_password: false },
+  });
   if (error) {
     throw toServiceError(error, 'Unable to update your password.');
+  }
+}
+
+/**
+ * Verifies the signed-in user's current (or temporary) password and updates it
+ * to a new password, clearing any `must_change_password` flag.
+ */
+export async function changeAuthenticatedPassword(input: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<void> {
+  if (!input.currentPassword) {
+    throw new ServiceError('Please enter your current or temporary password.', {
+      code: 'current_password_required',
+    });
+  }
+  if (input.newPassword.length < 8) {
+    throw new ServiceError('New password must be at least 8 characters long.', {
+      code: 'weak_password',
+    });
+  }
+  if (input.newPassword === input.currentPassword) {
+    throw new ServiceError('Please choose a new password different from your current one.', {
+      code: 'same_password',
+    });
+  }
+
+  const session = await getSession();
+  const email = session?.user?.email?.trim().toLowerCase();
+  if (!email) {
+    throw new ServiceError('You must be signed in to change your password.', {
+      code: 'unauthenticated',
+      status: 401,
+    });
+  }
+
+  const supabase = getSupabaseClient();
+  const { error: verifyError } = await supabase.auth.signInWithPassword({
+    email,
+    password: input.currentPassword,
+  });
+
+  if (verifyError) {
+    throw new ServiceError('Your current or temporary password is incorrect.', {
+      code: 'invalid_current_password',
+    });
+  }
+
+  const { error: updateError } = await supabase.auth.updateUser({
+    password: input.newPassword,
+    data: { must_change_password: false },
+  });
+
+  if (updateError) {
+    throw toServiceError(updateError, 'Unable to update your password.');
   }
 }
 

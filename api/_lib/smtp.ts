@@ -356,3 +356,156 @@ export async function sendBarangayAdminRequestEmail(
 
   return { sent: false };
 }
+
+export interface BarangayAdminCredentialsEmailParams {
+  to: string;
+  applicantName: string;
+  barangayName: string;
+  cityMunicipality: string;
+  province: string;
+  portalUrl: string;
+  temporaryPassword: string | null;
+}
+
+function renderBarangayAdminApprovalHtml(params: BarangayAdminCredentialsEmailParams): string {
+  const esc = escapeHtml;
+  const officeTitle = [params.barangayName, params.cityMunicipality, params.province]
+    .filter(Boolean)
+    .map(esc)
+    .join(', ');
+  const loginUrl = `${params.portalUrl.replace(/\/+$/, '')}/login`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DocuDash Barangay Admin Access Approved</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F172A;">
+    <div style="background-color:#F8FAFC;padding:32px 16px;">
+      <div style="max-width:580px;margin:0 auto;background-color:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;">
+        <div style="background-color:#01227F;padding:24px 28px;border-bottom:4px solid #FBC128;">
+          <div style="font-size:20px;font-weight:700;color:#FFFFFF;letter-spacing:-0.01em;">DocuDash</div>
+          <div style="font-size:12px;color:#DCE5FF;margin-top:4px;">Barangay Document Pre-Processing &amp; Scheduled Pickup</div>
+        </div>
+
+        <div style="padding:28px;">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#01227F;">Barangay Admin Approved</div>
+          <h1 style="font-size:22px;font-weight:700;color:#0F172A;margin:8px 0 16px;line-height:1.3;">Your Barangay Admin portal is ready</h1>
+
+          <p style="font-size:15px;line-height:1.6;color:#475569;margin:0 0 16px;">
+            Hello ${esc(params.applicantName)},
+          </p>
+          <p style="font-size:15px;line-height:1.6;color:#475569;margin:0 0 20px;">
+            Your onboarding request for <strong>${officeTitle}</strong> has been approved by the DocuDash App Manager.
+          </p>
+
+          <div style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px 18px;margin-bottom:20px;">
+            <div style="font-size:12px;color:#64748B;margin-bottom:2px;">Assigned Barangay Office</div>
+            <div style="font-size:14px;font-weight:600;color:#0F172A;margin-bottom:12px;">${officeTitle}</div>
+            <div style="font-size:12px;color:#64748B;margin-bottom:2px;">Login Email</div>
+            <div style="font-size:14px;font-weight:600;color:#0F172A;margin-bottom:${params.temporaryPassword ? '12px' : '12px'};">${esc(params.to)}</div>
+            ${
+              params.temporaryPassword
+                ? `<div style="font-size:12px;color:#64748B;margin-bottom:4px;">Temporary Password</div>
+                   <div style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:16px;font-weight:700;letter-spacing:0.04em;color:#01227F;background-color:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;padding:10px 12px;margin-bottom:12px;">${esc(params.temporaryPassword)}</div>`
+                : `<div style="font-size:12px;color:#64748B;margin-bottom:2px;">Account Status</div>
+                   <div style="font-size:14px;font-weight:600;color:#047857;margin-bottom:12px;">Existing DocuDash account promoted to Barangay Admin (use your existing password)</div>`
+            }
+            <div style="font-size:12px;color:#64748B;margin-bottom:2px;">Login Portal</div>
+            <div style="font-size:13px;color:#01227F;word-break:break-all;"><a href="${esc(loginUrl)}" style="color:#01227F;font-weight:600;text-decoration:none;">${esc(loginUrl)}</a></div>
+          </div>
+
+          <p style="font-size:13px;line-height:1.6;color:${params.temporaryPassword ? '#B45309' : '#475569'};margin:0;">
+            ${
+              params.temporaryPassword
+                ? '<strong>Important:</strong> Please change this temporary password immediately after signing in under <strong>Barangay Office → Account Security</strong> or <strong>Settings → Change Password</strong>.'
+                : 'Sign in with your existing password to configure your Barangay Hall map pin, pickup schedules, and official GCash payment QR code.'
+            }
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>`;
+}
+
+/**
+ * Emails newly provisioned or promoted Barangay Admin login instructions to
+ * the onboarding applicant. Never logs temporary passwords and returns
+ * `{ sent: false }` cleanly if SMTP is unconfigured or delivery fails so the
+ * App Manager UI can surface a fallback notice.
+ */
+export async function sendBarangayAdminApprovalEmail(
+  params: BarangayAdminCredentialsEmailParams
+): Promise<SendStatusEmailResult> {
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS?.trim();
+  if (!user || !pass) {
+    return { sent: false };
+  }
+
+  const host = process.env.SMTP_HOST?.trim() || DEFAULT_SMTP_HOST;
+  const port = parseSmtpPort(process.env.SMTP_PORT);
+  const from = process.env.SMTP_FROM?.trim() || `DocuDash <${user}>`;
+  const loginUrl = `${params.portalUrl.replace(/\/+$/, '')}/login`;
+  const officeTitle = [params.barangayName, params.cityMunicipality, params.province]
+    .filter(Boolean)
+    .join(', ');
+
+  const html = renderBarangayAdminApprovalHtml(params);
+  const text = [
+    `DocuDash — Barangay Admin Access Approved`,
+    ``,
+    `Hello ${params.applicantName},`,
+    `Your Barangay Admin request for ${officeTitle} has been approved.`,
+    ``,
+    `Login Email: ${params.to}`,
+    params.temporaryPassword
+      ? `Temporary Password: ${params.temporaryPassword}`
+      : `Account Status: Existing account promoted to Barangay Admin (use your existing password)`,
+    `Login Portal: ${loginUrl}`,
+    ``,
+    params.temporaryPassword
+      ? `Important: Change your temporary password immediately after signing in via Barangay Office -> Account Security or Settings -> Change Password.`
+      : `Sign in to configure your Barangay Hall location and official GCash payment QR code.`,
+  ].join('\n');
+
+  for (let attempt = 0; attempt <= MAX_RETRY_ATTEMPTS; attempt += 1) {
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass },
+      connectionTimeout: SOCKET_TIMEOUT_MS,
+      greetingTimeout: SOCKET_TIMEOUT_MS,
+      socketTimeout: SOCKET_TIMEOUT_MS,
+    });
+
+    try {
+      const info = await transporter.sendMail({
+        from,
+        to: params.to,
+        subject: `DocuDash Barangay Admin Approved: ${params.barangayName}, ${params.cityMunicipality}`,
+        html,
+        text,
+      });
+
+      return { sent: true, emailId: info.messageId || undefined };
+    } catch (caught) {
+      if (isRetryableSmtpError(caught) && attempt < MAX_RETRY_ATTEMPTS) {
+        await sleep(RETRY_DELAY_MS);
+        continue;
+      }
+
+      const { code, responseCode } = getSmtpErrorDetails(caught);
+      console.error('[DocuDash SMTP admin approval email error]', { code, responseCode });
+      return { sent: false };
+    } finally {
+      transporter.close();
+    }
+  }
+
+  return { sent: false };
+}

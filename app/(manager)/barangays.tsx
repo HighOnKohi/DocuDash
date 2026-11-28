@@ -1,4 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import * as Clipboard from 'expo-clipboard';
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 
@@ -21,6 +22,12 @@ export default function ManagerBarangaysScreen() {
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(
     null
   );
+  const [fallbackCreds, setFallbackCreds] = useState<{
+    email: string;
+    barangayName: string;
+    password: string;
+  } | null>(null);
+  const [copiedFallback, setCopiedFallback] = useState(false);
 
   const visibleRequests = useMemo(() => {
     const all = data?.adminRequests ?? [];
@@ -43,16 +50,27 @@ export default function ManagerBarangaysScreen() {
   async function handleReviewRequest(
     requestId: string,
     decision: 'approved' | 'rejected',
-    promoteApplicant: boolean
+    promoteApplicant: boolean,
+    emailForFallback?: string,
+    barangayForFallback?: string
   ) {
     setBusyKey(`req-${requestId}`);
     setFeedback(null);
+    setFallbackCreds(null);
+    setCopiedFallback(false);
     try {
       const res = await reviewBarangayAdminRequest({
         requestId,
         decision,
         promoteApplicant,
       });
+      if (res.temporaryPasswordFallback && emailForFallback) {
+        setFallbackCreds({
+          email: emailForFallback,
+          barangayName: barangayForFallback ?? 'Barangay Office',
+          password: res.temporaryPasswordFallback,
+        });
+      }
       await refresh({ silent: true });
       setFeedback({ tone: 'success', message: res.message });
     } catch (err) {
@@ -63,6 +81,14 @@ export default function ManagerBarangaysScreen() {
     } finally {
       setBusyKey(null);
     }
+  }
+
+  async function handleCopyFallbackPassword() {
+    if (!fallbackCreds) return;
+    await Clipboard.setStringAsync(fallbackCreds.password, {
+      android: { isSensitive: true },
+    });
+    setCopiedFallback(true);
   }
 
   async function handleToggleBarangay(barangayId: string, nextActive: boolean) {
@@ -124,6 +150,37 @@ export default function ManagerBarangaysScreen() {
 
       {error ? <Banner tone="error" message={error} /> : null}
       {feedback ? <Banner tone={feedback.tone} message={feedback.message} /> : null}
+
+      {fallbackCreds ? (
+        <View className="gap-2.5 rounded-card border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/50">
+          <View className="flex-row items-start justify-between gap-2">
+            <View className="flex-1 gap-0.5">
+              <Text className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                SMTP Delivery Unavailable — Share Credentials Manually
+              </Text>
+              <Text className="text-xs text-amber-800 dark:text-amber-300">
+                Created Barangay Admin account for {fallbackCreds.barangayName} ({fallbackCreds.email}
+                ). Temporary password:
+              </Text>
+            </View>
+            <Pressable onPress={() => setFallbackCreds(null)} hitSlop={8}>
+              <MaterialIcons name="close" size={18} color={colors.warning} />
+            </Pressable>
+          </View>
+          <View className="flex-row flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-surface px-3 py-2 dark:border-amber-800">
+            <Text selectable className="font-mono text-sm font-bold text-ink">
+              {fallbackCreds.password}
+            </Text>
+            <Button
+              label={copiedFallback ? 'Copied!' : 'Copy Password'}
+              icon={copiedFallback ? 'check' : 'content-copy'}
+              size="sm"
+              variant="outline"
+              onPress={() => void handleCopyFallbackPassword()}
+            />
+          </View>
+        </View>
+      ) : null}
 
       {/* Section 1: Barangay Admin Onboarding Requests */}
       <Card
@@ -241,12 +298,20 @@ export default function ManagerBarangaysScreen() {
                   {reqItem.status === 'pending' ? (
                     <View className="flex-row flex-wrap gap-2 pt-1">
                       <Button
-                        label="Approve & Promote Admin"
+                        label="Approve & Create/Notify Admin"
                         size="sm"
                         variant="primary"
                         icon="verified-user"
                         loading={isBusy}
-                        onPress={() => void handleReviewRequest(reqItem.id, 'approved', true)}
+                        onPress={() =>
+                          void handleReviewRequest(
+                            reqItem.id,
+                            'approved',
+                            true,
+                            reqItem.applicant_email,
+                            reqItem.barangay_name
+                          )
+                        }
                       />
                       <Button
                         label="Approve Barangay Only"

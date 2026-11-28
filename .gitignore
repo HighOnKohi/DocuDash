@@ -52,3 +52,6 @@ example
 .env
 .env.*
 !.env.example
+
+# local bootstrap migration
+supabase/migrations/007_app_manager_bootstrap.sql

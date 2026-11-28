@@ -767,6 +767,9 @@ export interface AppManagerActionResponse {
   action: AppManagerActionPayload['action'];
   message: string;
   promotedUser?: boolean;
+  accountCreated?: boolean;
+  emailedCredentials?: boolean;
+  temporaryPasswordFallback?: string;
   purgeResult?: PurgeAttachmentsResponse;
   deletedRequestsCount?: number;
   deletedAttachmentsCount?: number;

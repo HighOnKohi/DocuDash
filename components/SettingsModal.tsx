@@ -10,6 +10,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { getPermissionEnableSteps } from '@/services/permissionService';
 
 import { Button } from './Button';
+import { ChangePasswordModal } from './ChangePasswordModal';
 import { PermissionsPromptModal } from './PermissionsPromptModal';
 import { PrivacyPolicyModal } from './PrivacyPolicyModal';
 import { TermsModal } from './TermsModal';
@@ -37,7 +38,7 @@ export interface SettingsModalProps {
  * DocuDash Terms & Conditions.
  */
 export function SettingsModal({ visible, onClose }: SettingsModalProps) {
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { preference, setPreference, colors, themeVars } = useTheme();
   const {
     isSupported,
@@ -52,6 +53,7 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
   const [termsVisible, setTermsVisible] = useState(false);
   const [privacyVisible, setPrivacyVisible] = useState(false);
   const [permissionsVisible, setPermissionsVisible] = useState(false);
+  const [changePasswordVisible, setChangePasswordVisible] = useState(false);
 
   const notificationsActive = isSupported
     ? enabled && permissionStatus === 'granted'
@@ -342,6 +344,32 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
                   ) : null}
                 </View>
 
+                {/* Account Security (signed-in users) */}
+                {isAuthenticated ? (
+                  <View className="gap-2">
+                    <Text className="text-xs font-bold uppercase tracking-wider text-ink-subtle">
+                      Account Security
+                    </Text>
+                    <Pressable
+                      onPress={() => setChangePasswordVisible(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Change account password"
+                      className="flex-row items-center justify-between rounded-xl border border-border bg-surface-muted px-4 py-3"
+                    >
+                      <View className="flex-row items-center gap-3">
+                        <MaterialIcons name="lock-reset" size={18} color={colors.primary} />
+                        <View>
+                          <Text className="text-sm font-semibold text-ink">Change Password</Text>
+                          <Text className="text-[11px] text-ink-subtle">
+                            Update your password or replace a temporary password
+                          </Text>
+                        </View>
+                      </View>
+                      <MaterialIcons name="chevron-right" size={20} color={colors.inkSubtle} />
+                    </Pressable>
+                  </View>
+                ) : null}
+
                 {/* Legal & Privacy */}
                 <View className="gap-2">
                   <Text className="text-xs font-bold uppercase tracking-wider text-ink-subtle">
@@ -431,6 +459,11 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
         visible={permissionsVisible}
         onClose={() => setPermissionsVisible(false)}
         includeCamera
+      />
+      <ChangePasswordModal
+        visible={changePasswordVisible}
+        onClose={() => setChangePasswordVisible(false)}
+        isTemporaryPassword={Boolean(user?.user_metadata?.must_change_password)}
       />
       <PrivacyPolicyModal visible={privacyVisible} onClose={() => setPrivacyVisible(false)} />
       <TermsModal visible={termsVisible} onClose={() => setTermsVisible(false)} />

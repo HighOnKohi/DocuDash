@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
+import { GcashPaymentDetails } from '@/components/GcashPaymentDetails';
 import { QrCodeMatrix } from '@/components/QrCodeMatrix';
 import { Banner, EmptyState, LoadingState } from '@/components/StateView';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -33,7 +34,11 @@ import {
 } from '@/constants/format';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { getBarangayGcashQrUrl, openBarangayHallInMaps } from '@/services/barangayService';
+import {
+  downloadBarangayGcashQr,
+  getBarangayGcashQrUrl,
+  openBarangayHallInMaps,
+} from '@/services/barangayService';
 import {
   getRequestById,
   setRequestPaymentOption,
@@ -116,6 +121,7 @@ export default function RequestDetailScreen() {
   } | null>(null);
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [qrZoomVisible, setQrZoomVisible] = useState(false);
+  const [downloadingQr, setDownloadingQr] = useState(false);
 
   const loadRequest = useCallback(
     async (options: { silent?: boolean } = {}) => {
@@ -892,51 +898,12 @@ export default function RequestDetailScreen() {
                         </Text>
                       ) : (
                         <View className="gap-3 rounded-xl border border-border bg-surface-muted p-4">
-                          {getBarangayGcashQrUrl(request.barangay?.gcash_qr_storage_path) ? (
-                            <View className="items-center gap-2">
-                              <Pressable
-                                onPress={() => setQrZoomVisible(true)}
-                                accessibilityRole="button"
-                                accessibilityLabel="Enlarge Barangay GCash QR Code"
-                              >
-                                <Image
-                                  source={{
-                                    uri:
-                                      getBarangayGcashQrUrl(
-                                        request.barangay?.gcash_qr_storage_path
-                                      ) ?? '',
-                                  }}
-                                  resizeMode="contain"
-                                  style={{
-                                    width: 200,
-                                    height: 200,
-                                    borderRadius: 12,
-                                    backgroundColor: '#FFFFFF',
-                                  }}
-                                  accessibilityLabel="Barangay GCash QR Code"
-                                />
-                              </Pressable>
-                              <Text className="text-[11px] text-ink-subtle">
-                                Tap QR code to enlarge
-                              </Text>
-                              {request.barangay?.gcash_account_name ||
-                              request.barangay?.gcash_account_number ? (
-                                <Text className="text-center text-xs font-semibold text-ink">
-                                  {[
-                                    request.barangay?.gcash_account_name,
-                                    request.barangay?.gcash_account_number,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(' · ')}
-                                </Text>
-                              ) : null}
-                            </View>
-                          ) : (
-                            <Banner
-                              tone="warning"
-                              message="Your barangay office has not uploaded a GCash QR image yet. Switch to Cash on Claiming or check back shortly."
-                            />
-                          )}
+                          <GcashPaymentDetails
+                            barangay={request.barangay}
+                            emptyTone="warning"
+                            emptyMessage="Your barangay office has not uploaded a GCash QR image yet. Switch to Cash on Claiming or check back shortly."
+                            onZoomQr={() => setQrZoomVisible(true)}
+                          />
 
                           <View className="rounded-xl border border-border bg-surface px-3.5 py-2.5">
                             <Text className="text-xs font-semibold text-primary">
@@ -1136,18 +1103,50 @@ export default function RequestDetailScreen() {
           <View className="w-full max-w-sm items-center gap-4 rounded-2xl border border-border bg-surface p-5">
             <Text className="text-base font-bold text-ink">Barangay GCash QR Code</Text>
             {getBarangayGcashQrUrl(request?.barangay?.gcash_qr_storage_path) ? (
-              <Image
-                source={{
-                  uri: getBarangayGcashQrUrl(request?.barangay?.gcash_qr_storage_path) ?? '',
-                }}
-                resizeMode="contain"
-                style={{
-                  width: 280,
-                  height: 280,
-                  borderRadius: 12,
-                  backgroundColor: '#FFFFFF',
-                }}
-              />
+              <>
+                <Image
+                  source={{
+                    uri: getBarangayGcashQrUrl(request?.barangay?.gcash_qr_storage_path) ?? '',
+                  }}
+                  resizeMode="contain"
+                  style={{
+                    width: 280,
+                    height: 280,
+                    borderRadius: 12,
+                    backgroundColor: '#FFFFFF',
+                  }}
+                />
+                <Button
+                  label="Download GCash QR"
+                  icon="download"
+                  variant="outline"
+                  size="sm"
+                  loading={downloadingQr}
+                  onPress={() => {
+                    const storagePath = request?.barangay?.gcash_qr_storage_path;
+                    if (!storagePath) return;
+                    setDownloadingQr(true);
+                    void downloadBarangayGcashQr({
+                      storagePath,
+                      barangayName: request?.barangay?.name,
+                    })
+                      .then(() => {
+                        setActionMessage({
+                          tone: 'success',
+                          text: 'GCash QR image download started.',
+                        });
+                      })
+                      .catch((error) => {
+                        setActionMessage({
+                          tone: 'error',
+                          text: toServiceError(error, 'Unable to download GCash QR code.').message,
+                        });
+                      })
+                      .finally(() => setDownloadingQr(false));
+                  }}
+                  fullWidth
+                />
+              </>
             ) : null}
             <Button
               label="Close"

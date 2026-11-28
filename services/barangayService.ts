@@ -1,4 +1,4 @@
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
 import type {
   ApiErrorResponse,
@@ -198,6 +198,78 @@ export function getBarangayGcashQrUrl(storagePath: string | null | undefined): s
   } catch {
     return null;
   }
+}
+
+function buildQrDownloadFileName(storagePath: string, barangayName?: string | null): string {
+  const extMatch = /\.(png|jpe?g|webp)$/i.exec(storagePath.trim());
+  const ext = extMatch ? extMatch[1]!.toLowerCase() : 'png';
+  const slug = (barangayName ?? 'barangay')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `${slug || 'barangay'}-gcash-qr.${ext}`;
+}
+
+/** Resolves a Supabase public URL with a `download` disposition filename. */
+export function getBarangayGcashQrDownloadUrl(
+  storagePath: string | null | undefined,
+  fileName?: string
+): string | null {
+  const trimmed = storagePath?.trim();
+  if (!trimmed) return null;
+
+  try {
+    const supabase = getSupabaseClient();
+    const { data } = supabase.storage.from(BARANGAY_ASSETS_BUCKET).getPublicUrl(trimmed, {
+      download: fileName || true,
+    });
+    return data.publicUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Downloads the barangay's GCash QR image directly on Web (Blob download) or via
+ * the device's system Download Manager / browser on Android and iOS.
+ */
+export async function downloadBarangayGcashQr(input: {
+  storagePath: string;
+  barangayName?: string | null;
+}): Promise<void> {
+  const fileName = buildQrDownloadFileName(input.storagePath, input.barangayName);
+  const publicUrl = getBarangayGcashQrUrl(input.storagePath);
+  const downloadUrl = getBarangayGcashQrDownloadUrl(input.storagePath, fileName) ?? publicUrl;
+
+  if (!downloadUrl) {
+    throw new ServiceError('GCash QR download link is unavailable.', {
+      code: 'missing_qr_url',
+    });
+  }
+
+  if (Platform.OS === 'web' && typeof document !== 'undefined' && publicUrl) {
+    try {
+      const response = await fetch(publicUrl);
+      if (response.ok) {
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        anchor.download = fileName;
+        anchor.rel = 'noopener';
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+        return;
+      }
+    } catch {
+      // Fall back to direct URL download below.
+    }
+  }
+
+  await Linking.openURL(downloadUrl);
 }
 
 /**

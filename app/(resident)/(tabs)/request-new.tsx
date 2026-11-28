@@ -3,7 +3,6 @@ import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,12 +15,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
+import { GcashPaymentDetails } from '@/components/GcashPaymentDetails';
 import { Banner, LoadingState } from '@/components/StateView';
 import { TextField } from '@/components/TextField';
 import { formatFee, formatSlotDate, formatTimeWindow } from '@/constants/format';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { getBarangayById, getBarangayGcashQrUrl } from '@/services/barangayService';
+import { getBarangayById } from '@/services/barangayService';
 import {
   createRequest,
   listDocumentTypes,
@@ -711,35 +711,11 @@ export default function NewRequestScreen() {
 
                       {paymentMethod === 'gcash' ? (
                         <View className="gap-3 rounded-xl border border-border bg-surface-muted p-4">
-                          {getBarangayGcashQrUrl(barangay?.gcash_qr_storage_path) ? (
-                            <View className="items-center gap-2">
-                              <Image
-                                source={{
-                                  uri: getBarangayGcashQrUrl(barangay?.gcash_qr_storage_path) ?? '',
-                                }}
-                                resizeMode="contain"
-                                style={{
-                                  width: 210,
-                                  height: 210,
-                                  borderRadius: 12,
-                                  backgroundColor: '#FFFFFF',
-                                }}
-                                accessibilityLabel="Barangay GCash QR Code"
-                              />
-                              {barangay?.gcash_account_name || barangay?.gcash_account_number ? (
-                                <Text className="text-center text-xs font-semibold text-ink">
-                                  {[barangay?.gcash_account_name, barangay?.gcash_account_number]
-                                    .filter(Boolean)
-                                    .join(' · ')}
-                                </Text>
-                              ) : null}
-                            </View>
-                          ) : (
-                            <Banner
-                              tone="info"
-                              message="Your barangay office has not uploaded a GCash QR image yet. You can still submit this request now and upload GCash proof later or pay Cash upon claiming."
-                            />
-                          )}
+                          <GcashPaymentDetails
+                            barangay={barangay}
+                            emptyTone="info"
+                            emptyMessage="Your barangay office has not uploaded a GCash QR image yet. You can still submit this request now and upload GCash proof later or pay Cash upon claiming."
+                          />
 
                           <View className="rounded-xl border border-border bg-surface px-3.5 py-2.5">
                             <Text className="text-xs font-semibold text-primary">

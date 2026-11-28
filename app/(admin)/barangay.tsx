@@ -5,6 +5,7 @@ import { Image, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'r
 
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
+import { ChangePasswordModal } from '@/components/ChangePasswordModal';
 import {
   PhilippineBarangayPicker,
   type SelectedBarangayLocation,
@@ -33,9 +34,12 @@ const QR_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
  * and uploading the barangay's GCash payment QR code.
  */
 export default function AdminBarangayOfficeScreen() {
-  const { profile, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { colors } = useTheme();
   const barangayId = profile?.barangay_id ?? null;
+
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const isTempPassword = Boolean(user?.user_metadata?.must_change_password);
 
   const [barangay, setBarangay] = useState<Barangay | null>(null);
   const [loading, setLoading] = useState(Boolean(barangayId));
@@ -261,6 +265,31 @@ export default function AdminBarangayOfficeScreen() {
           {feedback ? <Banner tone={feedback.tone} message={feedback.message} /> : null}
           {loadError ? <Banner tone="error" message={loadError} /> : null}
 
+          <Card
+            title="Account Security &amp; Password"
+            subtitle={`Signed in as ${user?.email ?? 'barangay official'}`}
+            rightSlot={
+              <Button
+                label="Change Password"
+                icon="lock-reset"
+                size="sm"
+                variant={isTempPassword ? 'primary' : 'outline'}
+                onPress={() => setChangePasswordOpen(true)}
+              />
+            }
+          >
+            {isTempPassword ? (
+              <Banner
+                tone="warning"
+                message="You are signed in with an emailed temporary password. Please set your own private password now."
+              />
+            ) : (
+              <Text className="text-xs leading-5 text-ink-muted">
+                Update your Barangay Admin password anytime to keep your office portal secure.
+              </Text>
+            )}
+          </Card>
+
           {!barangayId ? (
             <Card
               title="Assign Your Barangay Office"
@@ -466,6 +495,15 @@ export default function AdminBarangayOfficeScreen() {
           )}
         </View>
       </ScrollView>
+
+      <ChangePasswordModal
+        visible={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+        isTemporaryPassword={isTempPassword}
+        onSuccess={() =>
+          setFeedback({ tone: 'success', message: 'Your Barangay Admin password was updated.' })
+        }
+      />
     </KeyboardAvoidingView>
   );
 }
